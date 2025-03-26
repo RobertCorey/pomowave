@@ -22,21 +22,11 @@ async function main() {
   });
 
   // Route to update the face of the coin
-
-  app.post("/api/", async (req, res) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const face = req.body;
-
-    if (face !== "heads" && face !== "tails" && face !== null) {
-      res
-        .status(400)
-        .json({ error: "Face must be 'heads', 'tails', or null" })
-        .send();
-    } else {
-      db.data.face = face;
-      await db.write();
-      res.json({ face: db.data.face });
-    }
+  app.post("/api/flip", async (req, res) => {
+    const face = Math.random() >= 0.5 ? "heads" : "tails";
+    db.data.face = face;
+    await db.write();
+    res.json({ face: db.data.face });
   });
 
   // Start the server

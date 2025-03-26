@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface CoinFace {
   face: 'heads' | 'tails' | null;
@@ -13,7 +13,20 @@ const fetchCoinFace = async (): Promise<CoinFace> => {
   return response.json();
 };
 
+// API function to flip the coin
+const flipCoin = async (): Promise<CoinFace> => {
+  const response = await fetch('/api/flip', {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP error: ${response.status}`);
+  }
+  return response.json();
+};
+
 function App() {
+  const queryClient = useQueryClient();
+  
   // Use React Query to fetch and poll coin face
   const {
     data: coinData,
@@ -23,6 +36,15 @@ function App() {
     queryKey: ['coinFace'],
     queryFn: fetchCoinFace,
     refetchInterval: 5000, // Poll every 5 seconds
+  });
+  
+  // Mutation for flipping the coin
+  const flipMutation = useMutation({
+    mutationFn: flipCoin,
+    onSuccess: () => {
+      // Invalidate and refetch the coin face after successful flip
+      queryClient.invalidateQueries({ queryKey: ['coinFace'] });
+    },
   });
 
   if (isLoading) return <div>Loading...</div>;
@@ -38,6 +60,12 @@ function App() {
           <p>Coin data unavailable</p>
         )}
       </div>
+      <button 
+        onClick={() => flipMutation.mutate()}
+        disabled={flipMutation.isPending}
+      >
+        {flipMutation.isPending ? 'Flipping...' : 'Flip Coin'}
+      </button>
     </div>
   );
 }
