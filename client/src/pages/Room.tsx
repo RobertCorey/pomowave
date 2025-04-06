@@ -1,30 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
-// API function to get room data
-const fetchRoom = async (roomCode: string) => {
-  const response = await fetch(`/api/rooms/${roomCode}`);
-  if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
-  }
-  return response.json();
-};
-
-// API function to join a room
-const joinRoom = async (roomCode: string, nickname: string) => {
-  const response = await fetch(`/api/rooms/${roomCode}/join`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ nickname }),
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
-  }
-  return response.json();
-};
+import { fetchRoom, joinRoom } from '../api';
 
 function Room() {
   const { roomCode } = useParams<{ roomCode: string }>();

@@ -1,23 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-
-// API function to create a room
-const createRoom = async (nickname: string) => {
-  const response = await fetch('/api/rooms', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ nickname }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
-  }
-  
-  return response.json();
-};
+import { createRoom } from '../api';
 
 function NewRoom() {
   const [nickname, setNickname] = useState('');
