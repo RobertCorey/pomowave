@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Deployment
+- Pushing to main branch triggers automatic redeployment on Render
+- Backend service: https://pomowave.onrender.com
+- Frontend service: https://pomowave-919t.onrender.com
+
 ## Commands
 - Client build: `cd client && npm run build`
 - Client dev: `cd client && npm run dev`
