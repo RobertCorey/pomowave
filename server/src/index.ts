@@ -66,28 +66,24 @@ const generateRoomCode = (): string => {
   return `${randomAnimal}-${randomColor}-${randomLocation}`;
 };
 
-// Using dynamic import for ESM module
+// In-memory database for Render's free tier (no persistent disk)
+const inMemoryDB: {
+  face: "heads" | "tails" | null;
+  rooms: Record<string, Room>;
+} = { face: null, rooms: {} };
+
 async function main() {
-  const { JSONFilePreset } = await import("lowdb/node");
-
-  // Create a db structure with rooms and coin face
-  const db = await JSONFilePreset<{
-    face: "heads" | "tails" | null;
-    rooms: Record<string, Room>;
-  }>("game.json", { face: null, rooms: {} });
-
   // Route to get the current face of the coin
   app.get("/api/coin-face", (req: Request, res: Response) => {
-    const face = db.data.face;
+    const face = inMemoryDB.face;
     res.json({ face });
   });
 
   // Route to update the face of the coin
   app.post("/api/flip", async (req, res) => {
     const face = Math.random() >= 0.5 ? "heads" : "tails";
-    db.data.face = face;
-    await db.write();
-    res.json({ face: db.data.face });
+    inMemoryDB.face = face;
+    res.json({ face: inMemoryDB.face });
   });
 
   // Route to create a new room
@@ -96,7 +92,7 @@ async function main() {
 
     if (!nickname || typeof nickname !== "string") {
       res.status(400).json({ error: "Nickname is required" });
-      return; // Add this return to prevent further execution
+      return;
     }
 
     const userId = Math.random().toString(36).substring(2, 15);
@@ -108,12 +104,8 @@ async function main() {
       users: [{ id: userId, nickname, isHost: true }],
     };
 
-    // Add the room to the database
-    if (!db.data.rooms) {
-      db.data.rooms = {};
-    }
-    db.data.rooms[roomId] = newRoom;
-    await db.write();
+    // Add the room to the in-memory database
+    inMemoryDB.rooms[roomId] = newRoom;
 
     // Return the created room and the user ID
     res.status(201).json({ room: newRoom, userId });
@@ -122,7 +114,7 @@ async function main() {
   // Route to get a room by ID
   app.get("/api/rooms/:roomId", (req, res) => {
     const { roomId } = req.params;
-    const room = db.data.rooms[roomId];
+    const room = inMemoryDB.rooms[roomId];
 
     if (!room) {
       res.status(404).json({ error: "Room not found" });
@@ -142,7 +134,7 @@ async function main() {
       return;
     }
 
-    const room = db.data.rooms[roomId];
+    const room = inMemoryDB.rooms[roomId];
 
     if (!room) {
       res.status(404).json({ error: "Room not found" });
@@ -153,7 +145,6 @@ async function main() {
 
     // Add the user to the room
     room.users.push({ id: userId, nickname, isHost: false });
-    await db.write();
 
     // Return the updated room and the user ID
     res.json({ room, userId });
