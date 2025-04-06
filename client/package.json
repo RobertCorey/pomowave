@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "test:debug": "playwright test --debug"
+    "test:debug": "playwright test --debug",
+    "test:ci": "CI=true playwright test"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.69.0",

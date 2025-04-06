@@ -11,5 +11,12 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    watch: {
+      ignored: [
+        '**/node_modules/**',
+        '**/playwright-report/**',
+        '**/test-results/**'
+      ]
+    },
   },
 });

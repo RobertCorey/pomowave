@@ -6,7 +6,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: "html",
+  reporter: process.env.CI ? [
+    ['list'], // Simple list reporter for console output
+    ['json', { outputFile: 'playwright-report/test-results.json' }], // JSON for programmatic analysis
+    ['html', { open: 'never' }] // HTML report without auto-opening
+  ] : 'html',
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
@@ -20,6 +24,6 @@ export default defineConfig({
   webServer: {
     command: "npm run dev",
     url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true, // Always try to reuse existing server
   },
 });
