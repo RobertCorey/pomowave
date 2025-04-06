@@ -1,8 +1,14 @@
 import express, { Request, Response } from "express";
+import cors from 'cors';
 
 // Initialize Express
 const app = express();
 app.use(express.json());
+app.use(cors({
+  origin: ['https://pomowave-919t.onrender.com', 'http://localhost:5173'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
 
 // Set port
 const PORT = process.env.PORT || 3000;
@@ -148,6 +154,11 @@ async function main() {
 
     // Return the updated room and the user ID
     res.json({ room, userId });
+  });
+
+  // Health check endpoint for Render
+  app.get('/healthz', (req, res) => {
+    res.status(200).send('OK');
   });
 
   // Start the server
