@@ -20,6 +20,7 @@
     "@types/cors": "^2.8.17",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "ioredis": "^5.3.2",
     "lowdb": "^7.0.1"
   },
   "devDependencies": {
