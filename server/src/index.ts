@@ -1,5 +1,7 @@
 import express, { Request, Response } from "express";
 import cors from 'cors';
+import { db } from './db';
+import { Room, User } from './types';
 
 // Initialize Express
 const app = express();
@@ -12,18 +14,6 @@ app.use(cors({
 
 // Set port
 const PORT = process.env.PORT || 3000;
-
-// Types for the room system
-type User = {
-  id: string;
-  nickname: string;
-  isHost: boolean;
-};
-
-type Room = {
-  id: string;
-  users: User[];
-};
 
 // Helper function to generate a room code
 const generateRoomCode = (): string => {
@@ -72,88 +62,111 @@ const generateRoomCode = (): string => {
   return `${randomAnimal}-${randomColor}-${randomLocation}`;
 };
 
-// In-memory database for Render's free tier (no persistent disk)
-const inMemoryDB: {
-  face: "heads" | "tails" | null;
-  rooms: Record<string, Room>;
-} = { face: null, rooms: {} };
-
 async function main() {
+  // Initialize the database connection
+  await db.init();
+
   // Route to get the current face of the coin
-  app.get("/api/coin-face", (req: Request, res: Response) => {
-    const face = inMemoryDB.face;
-    res.json({ face });
+  app.get("/api/coin-face", async (req: Request, res: Response) => {
+    try {
+      const face = await db.coinFace.get();
+      res.json({ face });
+    } catch (error) {
+      console.error('Error getting coin face:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // Route to update the face of the coin
   app.post("/api/flip", async (req, res) => {
-    const face = Math.random() >= 0.5 ? "heads" : "tails";
-    inMemoryDB.face = face;
-    res.json({ face: inMemoryDB.face });
+    try {
+      const face = Math.random() >= 0.5 ? "heads" : "tails";
+      await db.coinFace.set(face);
+      res.json({ face });
+    } catch (error) {
+      console.error('Error flipping coin:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // Route to create a new room
   app.post("/api/rooms", async (req, res) => {
-    const { nickname } = req.body;
+    try {
+      const { nickname } = req.body;
 
-    if (!nickname || typeof nickname !== "string") {
-      res.status(400).json({ error: "Nickname is required" });
-      return;
+      if (!nickname || typeof nickname !== "string") {
+        res.status(400).json({ error: "Nickname is required" });
+        return;
+      }
+
+      const userId = Math.random().toString(36).substring(2, 15);
+      const roomId = generateRoomCode();
+
+      // Create a new room with the user as the host
+      const newRoom: Room = {
+        id: roomId,
+        users: [{ id: userId, nickname, isHost: true }],
+      };
+
+      // Add the room to the database
+      await db.rooms.create(newRoom);
+
+      // Return the created room and the user ID
+      res.status(201).json({ room: newRoom, userId });
+    } catch (error) {
+      console.error('Error creating room:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    const userId = Math.random().toString(36).substring(2, 15);
-    const roomId = generateRoomCode();
-
-    // Create a new room with the user as the host
-    const newRoom: Room = {
-      id: roomId,
-      users: [{ id: userId, nickname, isHost: true }],
-    };
-
-    // Add the room to the in-memory database
-    inMemoryDB.rooms[roomId] = newRoom;
-
-    // Return the created room and the user ID
-    res.status(201).json({ room: newRoom, userId });
   });
 
   // Route to get a room by ID
-  app.get("/api/rooms/:roomId", (req, res) => {
-    const { roomId } = req.params;
-    const room = inMemoryDB.rooms[roomId];
+  app.get("/api/rooms/:roomId", async (req, res) => {
+    try {
+      const { roomId } = req.params;
+      const room = await db.rooms.get(roomId);
 
-    if (!room) {
-      res.status(404).json({ error: "Room not found" });
-      return;
+      if (!room) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+
+      res.json({ room });
+    } catch (error) {
+      console.error('Error getting room:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    res.json({ room });
   });
 
   // Route to join a room
   app.post("/api/rooms/:roomId/join", async (req, res) => {
-    const { roomId } = req.params;
-    const { nickname } = req.body;
+    try {
+      const { roomId } = req.params;
+      const { nickname } = req.body;
 
-    if (!nickname || typeof nickname !== "string") {
-      res.status(400).json({ error: "Nickname is required" });
-      return;
+      if (!nickname || typeof nickname !== "string") {
+        res.status(400).json({ error: "Nickname is required" });
+        return;
+      }
+
+      const room = await db.rooms.get(roomId);
+
+      if (!room) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+
+      const userId = Math.random().toString(36).substring(2, 15);
+      const newUser: User = { id: userId, nickname, isHost: false };
+
+      // Add the user to the room
+      const updatedRoom = await db.rooms.addUser(roomId, newUser);
+
+      // Return the updated room and the user ID
+      res.json({ room: updatedRoom, userId });
+    } catch (error) {
+      console.error('Error joining room:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-
-    const room = inMemoryDB.rooms[roomId];
-
-    if (!room) {
-      res.status(404).json({ error: "Room not found" });
-      return;
-    }
-
-    const userId = Math.random().toString(36).substring(2, 15);
-
-    // Add the user to the room
-    room.users.push({ id: userId, nickname, isHost: false });
-
-    // Return the updated room and the user ID
-    res.json({ room, userId });
   });
 
   // Health check endpoint for Render
@@ -169,6 +182,14 @@ async function main() {
   // Handle graceful shutdown
   const gracefulShutdown = async () => {
     console.log('Shutting down server gracefully...');
+    
+    // Close the database connection
+    try {
+      await db.close();
+    } catch (error) {
+      console.error('Error closing database connection:', error);
+    }
+    
     server.close(() => {
       console.log('Server closed');
       process.exit(0);
