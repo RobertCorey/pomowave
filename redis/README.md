@@ -93,6 +93,7 @@ If you prefer a graphical interface, these tools are available:
 
 The scripts in this directory can help you manage Redis for development:
 
-- `start-redis.sh` - Starts Redis server if not already running
+- `start-redis.sh` - Starts Redis server
 - `stop-redis.sh` - Stops Redis server
 - `reset-data.sh` - Clears all PomoWave data from Redis
+- `print-db.sh` - Prints all PomoWave data in Redis (useful for debugging)
