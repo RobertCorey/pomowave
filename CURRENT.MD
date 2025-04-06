@@ -1,4 +1,4 @@
-# CURRENT STATE OF POMOWAVE
+# CURRENT.MD
 
 ## Application Structure
 - Client built with React, TypeScript, React Router, and React Query
