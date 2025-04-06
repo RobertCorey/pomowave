@@ -2,8 +2,8 @@ import Redis from 'ioredis';
 import { Room, User } from './types';
 
 // Initialize Redis client
-// This will use environment variables in production and fallback to defaults in development
-const redisClient = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+// This will use the REDIS_URL environment variable
+const redisClient = new Redis(process.env.REDIS_URL);
 
 // Prefix for keys to avoid collisions
 const KEY_PREFIX = 'pomowave:';
@@ -17,12 +17,8 @@ export const db = {
       console.log('Redis connection established');
     } catch (error) {
       console.error('Redis connection error:', error);
-      // In development, continue with in-memory fallback
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Using in-memory fallback for development');
-      } else {
-        throw error; // In production, fail if Redis is unavailable
-      }
+      // Redis is required in both development and production
+      throw new Error(`Redis connection failed: ${error.message}. Redis is required to run the application.`);
     }
   },
 
@@ -80,31 +76,3 @@ export const db = {
     }
   }
 };
-
-// Fallback in-memory database for development/testing
-// This will be used if Redis is not available in development
-let inMemoryFallback: {
-  face: "heads" | "tails" | null;
-  rooms: Record<string, Room>;
-} = { face: null, rooms: {} };
-
-// Monkey patch Redis in development if the connection fails
-if (process.env.NODE_ENV !== 'production') {
-  redisClient.on('error', (error) => {
-    console.warn('Redis error, using in-memory fallback:', error.message);
-    
-    // Monkey patch the db methods to use in-memory storage instead
-    db.coinFace.get = async () => inMemoryFallback.face;
-    db.coinFace.set = async (face) => { inMemoryFallback.face = face; };
-    
-    db.rooms.create = async (room) => { inMemoryFallback.rooms[room.id] = room; };
-    db.rooms.get = async (roomId) => inMemoryFallback.rooms[roomId] || null;
-    db.rooms.update = async (room) => { inMemoryFallback.rooms[room.id] = room; };
-    db.rooms.addUser = async (roomId, user) => {
-      const room = inMemoryFallback.rooms[roomId];
-      if (!room) return null;
-      room.users.push(user);
-      return room;
-    };
-  });
-}

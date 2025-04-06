@@ -23,35 +23,55 @@ npm test
 
 ## Database
 
-The application uses Redis for data persistence. In development mode, if Redis is not available, an in-memory fallback will be used automatically.
+The application requires Redis for data persistence. Both local development and production deployments need Redis to be running.
 
 ### Redis Configuration
 
 Configure the Redis connection using environment variables:
 
-```
-# .env file
-REDIS_URL=redis://red-xxxxxxxxxxxxxxxxxxxx:6379
+1. Copy the example environment file to create your local configuration:
+
+```bash
+cp .env.example .env
 ```
 
-For Render deployment, the Redis URL is automatically configured through the Render Dashboard.
+2. The default configuration is ready for local development:
+
+```
+# .env file
+REDIS_URL=redis://localhost:6379
+```
+
+For Render deployment, the Redis URL is configured through the Render Dashboard environment variables.
 
 ### Local Redis Setup
 
-For local development with Redis:
+For local development, Redis must be installed and running:
 
-1. Install Redis locally or use a Docker container:
+1. Install Redis locally using Homebrew (macOS):
+
+```bash
+# Install Redis
+brew install redis
+
+# Start Redis service
+brew services start redis
+```
+
+Alternatively, use a Docker container:
 
 ```bash
 # Using Docker
 docker run --name redis -p 6379:6379 -d redis
 ```
 
-2. Update the `.env` file with your local Redis URL:
+2. The default local Redis URL is preconfigured, but you can override it in your `.env` file if needed:
 
 ```
 REDIS_URL=redis://localhost:6379
 ```
+
+See the `/redis/README.md` file for more detailed Redis setup instructions.
 
 ## API Endpoints
 

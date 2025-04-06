@@ -2,27 +2,26 @@
 
 ## Running the Application
 
-### Redis Setup (Required for full functionality)
+### Redis Setup (Required)
 
 1. **Install Redis** (one-time setup):
    ```
    # Install using Homebrew
    brew install redis
-   
-   # Or use the setup script
-   cd redis
-   ./start-redis.sh
    ```
 
 2. **Start Redis** before running the server:
    ```
-   # Check if Redis is running
-   brew services info redis
-   
-   # Start Redis if needed
+   # Start Redis
    brew services start redis
    
-   # Or use the script
+   # Check Redis status
+   brew services info redis
+   ```
+
+   Alternatively, you can use helper scripts:
+   ```
+   # Start Redis
    cd redis
    ./start-redis.sh
    ```
@@ -47,7 +46,7 @@ Please keep both terminals open while developing. The terminals will show real-t
 
 ## Redis Management
 
-The application uses Redis for data persistence. While there is a fallback to in-memory storage for development, using Redis locally provides a more production-like environment.
+The application requires Redis for data persistence. Redis must be running for both local development and production environments.
 
 - **Start Redis**: `brew services start redis` or use `./redis/start-redis.sh`
 - **Stop Redis**: `brew services stop redis` or use `./redis/stop-redis.sh`
@@ -60,6 +59,6 @@ See the [Redis README](/redis/README.md) for more detailed instructions on worki
 
 - **Always verify local development works before production**: Make sure all features work correctly in the local development environment before creating PRs or deploying to production. This includes running tests and manual verification.
 
-- **Database changes**: When making database-related changes, ensure the application works both with and without the external database service (Redis), as the fallback mechanism should support local development.
+- **Database changes**: When making database-related changes, ensure you test thoroughly with Redis in both development and production environments.
 
-- **Clean up log messages**: Reduce noisy logs in development mode, especially for expected conditions like Redis connection failures in local environment.
+- **Clean up log messages**: Reduce noisy logs in development mode where appropriate.
