@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 // API function to get room data
 const fetchRoom = async (roomCode: string) => {
@@ -14,9 +14,9 @@ const fetchRoom = async (roomCode: string) => {
 // API function to join a room
 const joinRoom = async (roomCode: string, nickname: string) => {
   const response = await fetch(`/api/rooms/${roomCode}/join`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({ nickname }),
   });
@@ -28,13 +28,13 @@ const joinRoom = async (roomCode: string, nickname: string) => {
 
 function Room() {
   const { roomCode } = useParams<{ roomCode: string }>();
-  const [nickname, setNickname] = useState('');
+  const [nickname, setNickname] = useState("");
   const [userJoined, setUserJoined] = useState(false);
   const queryClient = useQueryClient();
 
   // Check if the user has already joined this room
   useEffect(() => {
-    const roomUserMap = JSON.parse(localStorage.getItem('roomUserMap') || '{}');
+    const roomUserMap = JSON.parse(localStorage.getItem("roomUserMap") || "{}");
     if (roomCode && roomUserMap[roomCode]) {
       setUserJoined(true);
     }
@@ -46,7 +46,7 @@ function Room() {
     isLoading: isRoomLoading,
     error: roomError,
   } = useQuery({
-    queryKey: ['room', roomCode],
+    queryKey: ["room", roomCode],
     queryFn: () => fetchRoom(roomCode!),
     refetchInterval: 5000, // Poll every 5 seconds
     enabled: !!roomCode,
@@ -57,28 +57,32 @@ function Room() {
     mutationFn: () => joinRoom(roomCode!, nickname),
     onSuccess: (data) => {
       // Save the user ID to localStorage for this room
-      const roomUserMap = JSON.parse(localStorage.getItem('roomUserMap') || '{}');
+      const roomUserMap = JSON.parse(
+        localStorage.getItem("roomUserMap") || "{}"
+      );
       roomUserMap[roomCode!] = data.userId;
-      localStorage.setItem('roomUserMap', JSON.stringify(roomUserMap));
-      
+      localStorage.setItem("roomUserMap", JSON.stringify(roomUserMap));
+
       // Mark that the user has joined
       setUserJoined(true);
-      
+
       // Invalidate and refetch room data
-      queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+      queryClient.invalidateQueries({ queryKey: ["room", roomCode] });
     },
   });
 
   // Copy room URL to clipboard
   const copyRoomLink = () => {
     const roomUrl = window.location.href;
-    navigator.clipboard.writeText(roomUrl)
-      .then(() => alert('Room link copied to clipboard!'))
-      .catch((err) => console.error('Could not copy room link:', err));
+    navigator.clipboard
+      .writeText(roomUrl)
+      .then(() => alert("Room link copied to clipboard!"))
+      .catch((err) => console.error("Could not copy room link:", err));
   };
 
   if (isRoomLoading) return <div>Loading room data...</div>;
-  if (roomError) return <div>Error loading room: {(roomError as Error).message}</div>;
+  if (roomError)
+    return <div>Error loading room: {(roomError as Error).message}</div>;
 
   return (
     <div className="room-container">
@@ -90,12 +94,14 @@ function Room() {
       {!userJoined ? (
         <div className="join-form">
           <h2>Join this Room</h2>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (nickname.trim()) {
-              joinRoomMutation.mutate();
-            }
-          }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (nickname.trim()) {
+                joinRoomMutation.mutate();
+              }
+            }}
+          >
             <div className="form-group">
               <label htmlFor="join-nickname">Nickname:</label>
               <input
@@ -110,7 +116,7 @@ function Room() {
               type="submit"
               disabled={joinRoomMutation.isPending || !nickname.trim()}
             >
-              {joinRoomMutation.isPending ? 'Joining...' : 'Join Room'}
+              {joinRoomMutation.isPending ? "Joining..." : "Join Room"}
             </button>
           </form>
           {joinRoomMutation.isError && (
@@ -129,11 +135,13 @@ function Room() {
       <div className="users-list">
         <h2>Users in Room</h2>
         <ul>
-          {roomData?.room?.users?.map((user: { id: string; nickname: string; isHost: boolean }) => (
-            <li key={user.id}>
-              {user.nickname} {user.isHost ? '(Host)' : ''}
-            </li>
-          ))}
+          {roomData?.room?.users?.map(
+            (user: { id: string; nickname: string; isHost: boolean }) => (
+              <li key={user.id}>
+                {user.nickname} {user.isHost ? "(Host)" : ""}
+              </li>
+            )
+          )}
         </ul>
       </div>
     </div>
