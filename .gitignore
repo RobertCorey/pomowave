@@ -62,4 +62,5 @@ jspm_packages/
 
 # Test results
 **/test-results/
-**/playwright-report/
+**/playwright-report
+/server/.env
