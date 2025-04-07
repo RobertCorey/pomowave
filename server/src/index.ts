@@ -78,7 +78,7 @@ async function main() {
   });
 
   // Route to update the face of the coin
-  app.post("/api/flip", async (req, res) => {
+  app.post("/api/flip", async (req: Request, res: Response) => {
     try {
       const face = Math.random() >= 0.5 ? "heads" : "tails";
       await db.coinFace.set(face);
