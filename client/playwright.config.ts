@@ -6,13 +6,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: process.env.CI ? [
-    ['list'], // Simple list reporter for console output
-    ['json', { outputFile: 'playwright-report/test-results.json' }], // JSON for programmatic analysis
-    ['html', { open: 'never' }] // HTML report without auto-opening
-  ] : 'html',
+  reporter: [
+    ["list"], // Simple list reporter for console output
+  ],
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL: process.env.TEST_BASE_URL || "http://localhost:5173",
     trace: "on-first-retry",
   },
   projects: [
@@ -21,9 +19,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:5173",
-    reuseExistingServer: true, // Always try to reuse existing server
-  },
+  webServer: process.env.TEST_BASE_URL
+    ? undefined
+    : {
+        command: "npm run dev",
+        url: "http://localhost:5173",
+        reuseExistingServer: true, // Always try to reuse existing server
+      },
 });
