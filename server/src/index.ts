@@ -169,6 +169,47 @@ async function main() {
     }
   });
 
+  // Route to start a timer in a room
+  app.post("/api/rooms/:roomId/timer", async (req, res) => {
+    try {
+      const { roomId } = req.params;
+      const { userId, durationMinutes = 25 } = req.body;
+
+      if (!userId || typeof userId !== "string") {
+        res.status(400).json({ error: "User ID is required" });
+        return;
+      }
+
+      const room = await db.rooms.get(roomId);
+
+      if (!room) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+
+      // Verify the user is in the room
+      const userInRoom = room.users.find((u) => u.id === userId);
+      if (!userInRoom) {
+        res.status(403).json({ error: "User is not in this room" });
+        return;
+      }
+
+      // Set the timer
+      room.timer = {
+        endsAt: Date.now() + durationMinutes * 60 * 1000,
+        durationMinutes,
+        startedBy: userId,
+      };
+
+      await db.rooms.update(room);
+
+      res.json({ room });
+    } catch (error) {
+      console.error("Error starting timer:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // Health check endpoint for Render
   app.get('/healthz', (req, res) => {
     res.status(200).send('OK');
