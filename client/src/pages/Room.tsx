@@ -125,6 +125,13 @@ function Room() {
   const users: User[] = roomData?.room?.users || [];
   const sessions: PomoSession[] = roomData?.room?.sessions || [];
 
+  // Get the current active session's participants (most recent session when timer is active)
+  const activeSessionParticipants = useMemo(() => {
+    if (!isTimerActive || sessions.length === 0) return [];
+    const currentSession = sessions[sessions.length - 1];
+    return currentSession?.participants || [];
+  }, [isTimerActive, sessions]);
+
   const pageStyles = {
     container: {
       maxWidth: '400px',
@@ -262,6 +269,7 @@ function Room() {
           {isTimerActive ? (
             <WaveScene
               users={users}
+              participantIds={activeSessionParticipants}
               timeRemaining={timeRemaining!}
               startedByName={timerStarterName || 'Someone'}
             />

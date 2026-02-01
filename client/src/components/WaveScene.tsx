@@ -9,6 +9,7 @@ type User = {
 
 type WaveSceneProps = {
   users: User[];
+  participantIds: string[];
   timeRemaining: number;
   startedByName: string;
 };
@@ -99,15 +100,56 @@ const styles = {
     opacity: 0.6,
     fontSize: '1rem',
   },
+  beachStrip: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50px',
+    background: 'linear-gradient(180deg, #F4D03F 0%, #C4A35A 100%)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    gap: '12px',
+    paddingTop: '8px',
+    zIndex: 4,
+  },
+  beachGoerWrapper: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    opacity: 0.85,
+  },
+  beachTowel: {
+    width: '30px',
+    height: '4px',
+    background: 'linear-gradient(90deg, #e74c3c 0%, #e74c3c 33%, #fff 33%, #fff 66%, #3498db 66%)',
+    borderRadius: '2px',
+    marginTop: '2px',
+  },
+  waitingLabel: {
+    position: 'absolute' as const,
+    bottom: '52px',
+    left: 0,
+    right: 0,
+    textAlign: 'center' as const,
+    fontSize: '0.625rem',
+    color: 'rgba(255,255,255,0.6)',
+    zIndex: 5,
+  },
 };
 
-function WaveScene({ users, timeRemaining, startedByName }: WaveSceneProps) {
+function WaveScene({ users, participantIds, timeRemaining, startedByName }: WaveSceneProps) {
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Separate users into surfers (participants) and beach-goers (late joiners)
+  const surfers = users.filter(u => participantIds.includes(u.id));
+  const beachGoers = users.filter(u => !participantIds.includes(u.id));
 
   return (
     <div style={styles.container}>
@@ -127,7 +169,7 @@ function WaveScene({ users, timeRemaining, startedByName }: WaveSceneProps) {
         <div style={styles.wave}></div>
 
         <div style={styles.surfers}>
-          {users.map((user, index) => (
+          {surfers.map((user, index) => (
             <div
               key={user.id}
               style={{
@@ -142,6 +184,21 @@ function WaveScene({ users, timeRemaining, startedByName }: WaveSceneProps) {
             </div>
           ))}
         </div>
+
+        {/* Beach strip for late joiners */}
+        {beachGoers.length > 0 && (
+          <>
+            <div style={styles.waitingLabel}>Waiting on the beach...</div>
+            <div style={styles.beachStrip}>
+              {beachGoers.map((user) => (
+                <div key={user.id} style={styles.beachGoerWrapper}>
+                  <Avatar nickname={user.nickname} emoji={user.emoji} size="small" />
+                  <div style={styles.beachTowel}></div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* CSS animation for bobbing */}
