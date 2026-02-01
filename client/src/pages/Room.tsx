@@ -2,6 +2,24 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchRoom, joinRoom, startTimer } from '../api';
+import BeachScene from '../components/BeachScene';
+import WaveScene from '../components/WaveScene';
+import SessionHistory from '../components/SessionHistory';
+
+type User = {
+  id: string;
+  nickname: string;
+  emoji: string;
+  isHost: boolean;
+};
+
+type PomoSession = {
+  id: string;
+  startedAt: number;
+  startedBy: string;
+  participants: string[];
+  durationMinutes: number;
+};
 
 function Room() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -91,14 +109,6 @@ function Room() {
       .catch((err) => console.error("Could not copy room link:", err));
   };
 
-  // Format milliseconds as MM:SS
-  const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  };
-
   // Check if timer is active (has time remaining)
   const isTimerActive = timeRemaining !== null && timeRemaining > 0;
 
@@ -112,21 +122,109 @@ function Room() {
     return starter?.nickname || "Someone";
   }, [roomData?.room?.timer, roomData?.room?.users]);
 
-  if (isRoomLoading) return <div>Loading room data...</div>;
-  if (roomError)
-    return <div>Error loading room: {(roomError as Error).message}</div>;
+  const users: User[] = roomData?.room?.users || [];
+  const sessions: PomoSession[] = roomData?.room?.sessions || [];
+
+  const pageStyles = {
+    container: {
+      maxWidth: '400px',
+      margin: '0 auto',
+      padding: '16px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    },
+    header: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '16px',
+    },
+    roomCode: {
+      fontSize: '0.875rem',
+      color: '#64748b',
+      fontWeight: 500,
+    },
+    shareButton: {
+      background: 'transparent',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      padding: '8px 12px',
+      fontSize: '0.75rem',
+      color: '#64748b',
+      cursor: 'pointer',
+    },
+    joinContainer: {
+      background: 'linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%)',
+      borderRadius: '16px',
+      padding: '24px',
+      textAlign: 'center' as const,
+    },
+    joinTitle: {
+      fontSize: '1.25rem',
+      fontWeight: 600,
+      color: '#0369a1',
+      marginBottom: '16px',
+    },
+    form: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: '12px',
+    },
+    input: {
+      padding: '12px 16px',
+      borderRadius: '12px',
+      border: '2px solid #bae6fd',
+      fontSize: '1rem',
+      outline: 'none',
+      textAlign: 'center' as const,
+    },
+    joinButton: {
+      background: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
+      color: 'white',
+      border: 'none',
+      borderRadius: '12px',
+      padding: '14px',
+      fontSize: '1rem',
+      fontWeight: 600,
+      cursor: 'pointer',
+    },
+    error: {
+      color: '#dc2626',
+      fontSize: '0.875rem',
+      marginTop: '8px',
+    },
+    loading: {
+      textAlign: 'center' as const,
+      padding: '40px',
+      color: '#64748b',
+    },
+  };
+
+  if (isRoomLoading) {
+    return <div style={pageStyles.loading}>Loading... 🌊</div>;
+  }
+
+  if (roomError) {
+    return (
+      <div style={{ ...pageStyles.container, ...pageStyles.error }}>
+        Error loading room: {(roomError as Error).message}
+      </div>
+    );
+  }
 
   return (
-    <div className="room-container">
-      <div className="room-info">
-        <h1>Room: {roomCode}</h1>
-        <button onClick={copyRoomLink}>Share Link</button>
+    <div style={pageStyles.container}>
+      <div style={pageStyles.header}>
+        <span style={pageStyles.roomCode}>🏝️ {roomCode}</span>
+        <button style={pageStyles.shareButton} onClick={copyRoomLink}>
+          Share Link
+        </button>
       </div>
 
       {!userJoined ? (
-        <div className="join-form">
-          <h2>Join this Room</h2>
+        <div style={pageStyles.joinContainer}>
+          <div style={pageStyles.joinTitle}>Join the Beach! 🏖️</div>
           <form
+            style={pageStyles.form}
             onSubmit={(e) => {
               e.preventDefault();
               if (nickname.trim()) {
@@ -134,71 +232,57 @@ function Room() {
               }
             }}
           >
-            <div className="form-group">
-              <label htmlFor="join-nickname">Nickname:</label>
-              <input
-                type="text"
-                id="join-nickname"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                required
-              />
-            </div>
+            <input
+              type="text"
+              placeholder="Your nickname"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              style={pageStyles.input}
+              required
+            />
             <button
               type="submit"
               disabled={joinRoomMutation.isPending || !nickname.trim()}
+              style={{
+                ...pageStyles.joinButton,
+                opacity: joinRoomMutation.isPending || !nickname.trim() ? 0.6 : 1,
+              }}
             >
-              {joinRoomMutation.isPending ? "Joining..." : "Join Room"}
+              {joinRoomMutation.isPending ? "Joining..." : "🐚 Join Room"}
             </button>
           </form>
           {joinRoomMutation.isError && (
-            <div className="error">
-              Error joining room: {(joinRoomMutation.error as Error).message}
+            <div style={pageStyles.error}>
+              Error: {(joinRoomMutation.error as Error).message}
             </div>
           )}
         </div>
       ) : (
-        <div className="room-content">
-          <div className="timer-section">
-            {isTimerActive ? (
-              <>
-                <div className="timer-display">{formatTime(timeRemaining!)}</div>
-                <p className="timer-info">Timer started by {timerStarterName}</p>
-              </>
-            ) : (
-              <>
-                <div className="timer-display">25:00</div>
-                {timeRemaining === 0 && <p className="timer-info">Timer complete!</p>}
-                <button
-                  className="start-timer-btn"
-                  onClick={() => startTimerMutation.mutate()}
-                  disabled={startTimerMutation.isPending}
-                >
-                  {startTimerMutation.isPending ? "Starting..." : "Start Timer"}
-                </button>
-              </>
-            )}
-            {startTimerMutation.isError && (
-              <div className="error">
-                Error starting timer: {(startTimerMutation.error as Error).message}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="users-list">
-        <h2>Users in Room</h2>
-        <ul>
-          {roomData?.room?.users?.map(
-            (user: { id: string; nickname: string; isHost: boolean }) => (
-              <li key={user.id}>
-                {user.nickname} {user.isHost ? "(Host)" : ""}
-              </li>
-            )
+        <>
+          {isTimerActive ? (
+            <WaveScene
+              users={users}
+              timeRemaining={timeRemaining!}
+              startedByName={timerStarterName || 'Someone'}
+            />
+          ) : (
+            <BeachScene
+              users={users}
+              onStartTimer={() => startTimerMutation.mutate()}
+              isStarting={startTimerMutation.isPending}
+              timerComplete={timeRemaining === 0}
+            />
           )}
-        </ul>
-      </div>
+
+          {startTimerMutation.isError && (
+            <div style={pageStyles.error}>
+              Error starting timer: {(startTimerMutation.error as Error).message}
+            </div>
+          )}
+
+          <SessionHistory sessions={sessions} users={users} />
+        </>
+      )}
     </div>
   );
 }
