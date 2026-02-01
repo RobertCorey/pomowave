@@ -1,7 +1,17 @@
 import express, { Request, Response } from "express";
 import cors from 'cors';
 import { db } from './db';
-import { Room, User } from './types';
+import { Room, User, PomoSession } from './types';
+
+// Animal emojis for user avatars
+const ANIMAL_EMOJIS = [
+  "🐬", "🐳", "🦈", "🐙", "🦑", "🦀", "🦞", "🐠", "🐟", "🐡",
+  "🦭", "🐢", "🦩", "🦜", "🐚", "🌊"
+];
+
+const getRandomEmoji = (): string => {
+  return ANIMAL_EMOJIS[Math.floor(Math.random() * ANIMAL_EMOJIS.length)];
+};
 
 // Initialize Express
 const app = express();
@@ -105,7 +115,8 @@ async function main() {
       // Create a new room with the user as the host
       const newRoom: Room = {
         id: roomId,
-        users: [{ id: userId, nickname, isHost: true }],
+        users: [{ id: userId, nickname, emoji: getRandomEmoji(), isHost: true }],
+        sessions: [],
       };
 
       // Add the room to the database
@@ -156,7 +167,7 @@ async function main() {
       }
 
       const userId = Math.random().toString(36).substring(2, 15);
-      const newUser: User = { id: userId, nickname, isHost: false };
+      const newUser: User = { id: userId, nickname, emoji: getRandomEmoji(), isHost: false };
 
       // Add the user to the room
       const updatedRoom = await db.rooms.addUser(roomId, newUser);
@@ -194,12 +205,29 @@ async function main() {
         return;
       }
 
+      const now = Date.now();
+
       // Set the timer
       room.timer = {
-        endsAt: Date.now() + durationMinutes * 60 * 1000,
+        endsAt: now + durationMinutes * 60 * 1000,
         durationMinutes,
         startedBy: userId,
       };
+
+      // Create a new pomo session
+      const session: PomoSession = {
+        id: Math.random().toString(36).substring(2, 15),
+        startedAt: now,
+        startedBy: userId,
+        participants: room.users.map(u => u.id),
+        durationMinutes,
+      };
+
+      // Initialize sessions array if it doesn't exist (for backwards compatibility)
+      if (!room.sessions) {
+        room.sessions = [];
+      }
+      room.sessions.push(session);
 
       await db.rooms.update(room);
 
