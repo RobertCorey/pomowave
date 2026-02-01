@@ -43,3 +43,18 @@ export const joinRoom = async (roomCode: string, nickname: string) => {
   }
   return response.json();
 };
+
+// API function to start a timer in a room
+export const startTimer = async (roomCode: string, userId: string, durationMinutes: number = 25) => {
+  const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}/timer`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ userId, durationMinutes }),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP error: ${response.status}`);
+  }
+  return response.json();
+};
