@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchRoom, joinRoom, startTimer, joinWave } from '../api';
 import BeachScene from '../components/BeachScene';
 import WaveScene from '../components/WaveScene';
 import SessionHistory from '../components/SessionHistory';
+import { notifyTimerStart, notifyTimerComplete, requestNotificationPermission } from '../services/notifications';
 
 type User = {
   id: string;
@@ -29,6 +30,7 @@ function Room() {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [joinDeadlineRemaining, setJoinDeadlineRemaining] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const prevTimeRemainingRef = useRef<number | null>(null);
 
   // Get the current user's ID for this room
   const currentUserId = useMemo(() => {
@@ -75,6 +77,24 @@ function Room() {
     return () => clearInterval(interval);
   }, [roomData?.room?.timer?.endsAt]);
 
+  // Request notification permission when user joins
+  useEffect(() => {
+    if (userJoined) {
+      requestNotificationPermission();
+    }
+  }, [userJoined]);
+
+  // Detect timer completion and notify
+  useEffect(() => {
+    const prevTime = prevTimeRemainingRef.current;
+    prevTimeRemainingRef.current = timeRemaining;
+
+    // Timer just completed: was running (> 0) and now is 0
+    if (prevTime !== null && prevTime > 0 && timeRemaining === 0) {
+      notifyTimerComplete();
+    }
+  }, [timeRemaining]);
+
   // Update join deadline remaining time
   useEffect(() => {
     const sessions = roomData?.room?.sessions || [];
@@ -102,6 +122,7 @@ function Room() {
     mutationFn: () => startTimer(roomCode!, currentUserId!, 25),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", roomCode] });
+      notifyTimerStart();
     },
   });
 
