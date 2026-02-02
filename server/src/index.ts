@@ -214,13 +214,16 @@ async function main() {
         startedBy: userId,
       };
 
-      // Create a new pomo session
+      // Create a new pomo session - only the starter is a participant initially
+      // Other users have 60 seconds to join the wave
+      const JOIN_WINDOW_SECONDS = 60;
       const session: PomoSession = {
         id: Math.random().toString(36).substring(2, 15),
         startedAt: now,
         startedBy: userId,
-        participants: room.users.map(u => u.id),
+        participants: [userId], // Only the starter joins automatically
         durationMinutes,
+        joinDeadline: now + JOIN_WINDOW_SECONDS * 1000,
       };
 
       // Initialize sessions array if it doesn't exist (for backwards compatibility)
@@ -234,6 +237,69 @@ async function main() {
       res.json({ room });
     } catch (error) {
       console.error("Error starting timer:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Route to join an active wave
+  app.post("/api/rooms/:roomId/wave/join", async (req, res) => {
+    try {
+      const { roomId } = req.params;
+      const { userId } = req.body;
+
+      if (!userId || typeof userId !== "string") {
+        res.status(400).json({ error: "User ID is required" });
+        return;
+      }
+
+      const room = await db.rooms.get(roomId);
+
+      if (!room) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+
+      // Verify the user is in the room
+      const userInRoom = room.users.find((u) => u.id === userId);
+      if (!userInRoom) {
+        res.status(403).json({ error: "User is not in this room" });
+        return;
+      }
+
+      // Check if there's an active timer
+      if (!room.timer || room.timer.endsAt <= Date.now()) {
+        res.status(400).json({ error: "No active wave to join" });
+        return;
+      }
+
+      // Get the current session (most recent)
+      if (!room.sessions || room.sessions.length === 0) {
+        res.status(400).json({ error: "No active session" });
+        return;
+      }
+
+      const currentSession = room.sessions[room.sessions.length - 1];
+
+      // Check if user is already a participant
+      if (currentSession.participants.includes(userId)) {
+        res.status(400).json({ error: "Already joined this wave" });
+        return;
+      }
+
+      // Check if join deadline has passed
+      const now = Date.now();
+      if (currentSession.joinDeadline && now > currentSession.joinDeadline) {
+        res.status(400).json({ error: "Join deadline has passed" });
+        return;
+      }
+
+      // Add user to participants
+      currentSession.participants.push(userId);
+      await db.rooms.update(room);
+
+      res.json({ room });
+    } catch (error) {
+      console.error("Error joining wave:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

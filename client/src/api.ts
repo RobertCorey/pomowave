@@ -58,3 +58,18 @@ export const startTimer = async (roomCode: string, userId: string, durationMinut
   }
   return response.json();
 };
+
+// API function to join an active wave
+export const joinWave = async (roomCode: string, userId: string) => {
+  const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}/wave/join`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ userId }),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP error: ${response.status}`);
+  }
+  return response.json();
+};
