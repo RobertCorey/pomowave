@@ -95,6 +95,26 @@ function Room() {
     }
   }, [timeRemaining]);
 
+  // Sync timer status to browser tab title
+  useEffect(() => {
+    const formatTime = (ms: number) => {
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    };
+
+    if (timeRemaining !== null && timeRemaining > 0) {
+      document.title = `${formatTime(timeRemaining)} - Pomowave`;
+    } else {
+      document.title = 'Pomowave';
+    }
+
+    return () => {
+      document.title = 'Pomowave';
+    };
+  }, [timeRemaining]);
+
   // Update join deadline remaining time
   useEffect(() => {
     const sessions = roomData?.room?.sessions || [];
