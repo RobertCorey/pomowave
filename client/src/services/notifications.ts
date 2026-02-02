@@ -187,6 +187,22 @@ export function showStartNotification(): void {
 }
 
 /**
+ * Show a browser notification when someone else starts a wave
+ */
+export function showWaveStartedNotification(starterName: string): void {
+  if (!('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+
+  new Notification(`${starterName} started a wave! 🌊`, {
+    body: 'Join now to ride together!',
+    icon: '🏄',
+    tag: 'wave-started',
+    requireInteraction: false,
+  });
+}
+
+/**
  * Show a browser notification for timer completion
  */
 export function showCompleteNotification(): void {
@@ -217,4 +233,12 @@ export async function notifyTimerStart(): Promise<void> {
 export function notifyTimerComplete(): void {
   playCompleteSound();
   showCompleteNotification();
+}
+
+/**
+ * Notify user that someone else started a wave (sound + browser notification)
+ */
+export function notifyWaveStarted(starterName: string): void {
+  playStartSound();
+  showWaveStartedNotification(starterName);
 }
