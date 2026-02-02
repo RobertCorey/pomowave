@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchRoom, joinRoom, startTimer } from '../api';
+import { fetchRoom, joinRoom, startTimer, joinWave } from '../api';
 import BeachScene from '../components/BeachScene';
 import WaveScene from '../components/WaveScene';
 import SessionHistory from '../components/SessionHistory';
@@ -19,6 +19,7 @@ type PomoSession = {
   startedBy: string;
   participants: string[];
   durationMinutes: number;
+  joinDeadline?: number;
 };
 
 function Room() {
@@ -26,6 +27,7 @@ function Room() {
   const [nickname, setNickname] = useState("");
   const [userJoined, setUserJoined] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [joinDeadlineRemaining, setJoinDeadlineRemaining] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   // Get the current user's ID for this room
@@ -73,9 +75,39 @@ function Room() {
     return () => clearInterval(interval);
   }, [roomData?.room?.timer?.endsAt]);
 
+  // Update join deadline remaining time
+  useEffect(() => {
+    const sessions = roomData?.room?.sessions || [];
+    const currentSession = sessions[sessions.length - 1];
+    const joinDeadline = currentSession?.joinDeadline;
+
+    if (!joinDeadline || !roomData?.room?.timer) {
+      setJoinDeadlineRemaining(null);
+      return;
+    }
+
+    const updateJoinDeadlineRemaining = () => {
+      const remaining = Math.max(0, joinDeadline - Date.now());
+      setJoinDeadlineRemaining(remaining);
+    };
+
+    updateJoinDeadlineRemaining();
+    const interval = setInterval(updateJoinDeadlineRemaining, 1000);
+
+    return () => clearInterval(interval);
+  }, [roomData?.room?.sessions, roomData?.room?.timer]);
+
   // Mutation to start a timer
   const startTimerMutation = useMutation({
     mutationFn: () => startTimer(roomCode!, currentUserId!, 25),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["room", roomCode] });
+    },
+  });
+
+  // Mutation to join an active wave
+  const joinWaveMutation = useMutation({
+    mutationFn: () => joinWave(roomCode!, currentUserId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", roomCode] });
     },
@@ -131,6 +163,14 @@ function Room() {
     const currentSession = sessions[sessions.length - 1];
     return currentSession?.participants || [];
   }, [isTimerActive, sessions]);
+
+  // Check if current user can join the wave (not already a participant and deadline hasn't passed)
+  const canJoinWave = useMemo(() => {
+    if (!isTimerActive || !currentUserId) return false;
+    const isParticipant = activeSessionParticipants.includes(currentUserId);
+    const deadlineNotPassed = joinDeadlineRemaining !== null && joinDeadlineRemaining > 0;
+    return !isParticipant && deadlineNotPassed;
+  }, [isTimerActive, currentUserId, activeSessionParticipants, joinDeadlineRemaining]);
 
   const pageStyles = {
     container: {
@@ -272,6 +312,11 @@ function Room() {
               participantIds={activeSessionParticipants}
               timeRemaining={timeRemaining!}
               startedByName={timerStarterName || 'Someone'}
+              currentUserId={currentUserId}
+              canJoinWave={canJoinWave}
+              joinDeadlineRemaining={joinDeadlineRemaining}
+              onJoinWave={() => joinWaveMutation.mutate()}
+              isJoiningWave={joinWaveMutation.isPending}
             />
           ) : (
             <BeachScene

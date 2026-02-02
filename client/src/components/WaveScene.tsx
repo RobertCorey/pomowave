@@ -12,6 +12,11 @@ type WaveSceneProps = {
   participantIds: string[];
   timeRemaining: number;
   startedByName: string;
+  currentUserId: string | null;
+  canJoinWave: boolean;
+  joinDeadlineRemaining: number | null;
+  onJoinWave: () => void;
+  isJoiningWave: boolean;
 };
 
 const styles = {
@@ -131,9 +136,48 @@ const styles = {
     borderRadius: '2px',
     marginTop: '2px',
   },
+  joinWaveSection: {
+    marginTop: '12px',
+    background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+    borderRadius: '12px',
+    padding: '12px 16px',
+    textAlign: 'center' as const,
+  },
+  joinWaveLabel: {
+    fontSize: '0.75rem',
+    color: 'rgba(255,255,255,0.9)',
+    marginBottom: '8px',
+    fontWeight: 500,
+  },
+  joinWaveButton: {
+    background: 'white',
+    color: '#16a34a',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '10px 20px',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+  },
+  joinDeadlineText: {
+    fontSize: '0.625rem',
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: '6px',
+  },
 };
 
-function WaveScene({ users, participantIds, timeRemaining, startedByName }: WaveSceneProps) {
+function WaveScene({
+  users,
+  participantIds,
+  timeRemaining,
+  startedByName,
+  currentUserId,
+  canJoinWave,
+  joinDeadlineRemaining,
+  onJoinWave,
+  isJoiningWave
+}: WaveSceneProps) {
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -141,9 +185,15 @@ function WaveScene({ users, participantIds, timeRemaining, startedByName }: Wave
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Separate users into surfers (participants) and beach-goers (late joiners)
+  // Separate users into surfers (participants), those who can join, and beach-goers
   const surfers = users.filter(u => participantIds.includes(u.id));
-  const beachGoers = users.filter(u => !participantIds.includes(u.id));
+  // Current user who can join the wave (shown separately with join button)
+  const currentUserCanJoin = canJoinWave ? users.find(u => u.id === currentUserId) : null;
+  // Beach-goers: not participating AND (not current user who can join OR deadline passed)
+  const beachGoers = users.filter(u =>
+    !participantIds.includes(u.id) &&
+    !(canJoinWave && u.id === currentUserId)
+  );
 
   return (
     <div style={styles.container}>
@@ -178,6 +228,30 @@ function WaveScene({ users, participantIds, timeRemaining, startedByName }: Wave
           ))}
         </div>
       </div>
+
+      {/* Join wave section for current user who can still join */}
+      {currentUserCanJoin && (
+        <div style={styles.joinWaveSection}>
+          <div style={styles.joinWaveLabel}>
+            <Avatar nickname={currentUserCanJoin.nickname} emoji={currentUserCanJoin.emoji} size="small" />
+          </div>
+          <button
+            style={{
+              ...styles.joinWaveButton,
+              opacity: isJoiningWave ? 0.7 : 1,
+            }}
+            onClick={onJoinWave}
+            disabled={isJoiningWave}
+          >
+            {isJoiningWave ? 'Joining...' : '🏄 Join Wave!'}
+          </button>
+          {joinDeadlineRemaining !== null && joinDeadlineRemaining > 0 && (
+            <div style={styles.joinDeadlineText}>
+              {Math.ceil(joinDeadlineRemaining / 1000)}s left to join
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Beach section for late joiners */}
       {beachGoers.length > 0 && (
