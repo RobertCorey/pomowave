@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchRoom, joinRoom, startTimer, joinWave } from '../api';
 import BeachScene from '../components/BeachScene';
 import WaveScene from '../components/WaveScene';
 import SessionHistory from '../components/SessionHistory';
+import HotkeysModal from '../components/HotkeysModal';
 import { notifyTimerStart, notifyTimerComplete, requestNotificationPermission } from '../services/notifications';
 
 type User = {
@@ -29,6 +30,7 @@ function Room() {
   const [userJoined, setUserJoined] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [joinDeadlineRemaining, setJoinDeadlineRemaining] = useState<number | null>(null);
+  const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const prevTimeRemainingRef = useRef<number | null>(null);
 
@@ -213,6 +215,39 @@ function Room() {
     return !isParticipant && deadlineNotPassed;
   }, [isTimerActive, currentUserId, activeSessionParticipants, joinDeadlineRemaining]);
 
+  // Keyboard shortcuts handler
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Ignore if user is typing in an input field
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (!userJoined) return;
+
+      if (!isTimerActive) {
+        // Start a new pomo
+        if (currentUserId && !startTimerMutation.isPending) {
+          startTimerMutation.mutate();
+        }
+      } else if (canJoinWave && !joinWaveMutation.isPending) {
+        // Join the active wave
+        joinWaveMutation.mutate();
+      }
+    }
+
+    if (e.code === 'Escape' && isHotkeysModalOpen) {
+      setIsHotkeysModalOpen(false);
+    }
+  }, [userJoined, isTimerActive, currentUserId, canJoinWave, isHotkeysModalOpen, startTimerMutation, joinWaveMutation]);
+
+  // Register keyboard event listener
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   const pageStyles = {
     container: {
       maxWidth: '400px',
@@ -232,6 +267,19 @@ function Room() {
       fontWeight: 500,
     },
     shareButton: {
+      background: 'transparent',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      padding: '8px 12px',
+      fontSize: '0.75rem',
+      color: '#64748b',
+      cursor: 'pointer',
+    },
+    headerButtons: {
+      display: 'flex',
+      gap: '8px',
+    },
+    hotkeysButton: {
       background: 'transparent',
       border: '1px solid #e2e8f0',
       borderRadius: '8px',
@@ -303,9 +351,14 @@ function Room() {
     <div style={pageStyles.container}>
       <div style={pageStyles.header}>
         <span style={pageStyles.roomCode}>🏝️ {roomCode}</span>
-        <button style={pageStyles.shareButton} onClick={copyRoomLink}>
-          Share Link
-        </button>
+        <div style={pageStyles.headerButtons}>
+          <button style={pageStyles.hotkeysButton} onClick={() => setIsHotkeysModalOpen(true)}>
+            Hotkeys
+          </button>
+          <button style={pageStyles.shareButton} onClick={copyRoomLink}>
+            Share Link
+          </button>
+        </div>
       </div>
 
       {!userJoined ? (
@@ -377,6 +430,11 @@ function Room() {
           <SessionHistory sessions={sessions} users={users} />
         </>
       )}
+
+      <HotkeysModal
+        isOpen={isHotkeysModalOpen}
+        onClose={() => setIsHotkeysModalOpen(false)}
+      />
     </div>
   );
 }
