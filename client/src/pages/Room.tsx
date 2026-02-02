@@ -6,7 +6,7 @@ import BeachScene from '../components/BeachScene';
 import WaveScene from '../components/WaveScene';
 import SessionHistory from '../components/SessionHistory';
 import HotkeysModal from '../components/HotkeysModal';
-import { notifyTimerStart, notifyTimerComplete, requestNotificationPermission } from '../services/notifications';
+import { notifyTimerStart, notifyTimerComplete, notifyWaveStarted, requestNotificationPermission } from '../services/notifications';
 
 type User = {
   id: string;
@@ -33,6 +33,8 @@ function Room() {
   const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const prevTimeRemainingRef = useRef<number | null>(null);
+  // Use undefined to indicate "not initialized", null for "no sessions", string for session ID
+  const prevSessionIdRef = useRef<string | null | undefined>(undefined);
 
   // Get the current user's ID for this room
   const currentUserId = useMemo(() => {
@@ -96,6 +98,36 @@ function Room() {
       notifyTimerComplete();
     }
   }, [timeRemaining]);
+
+  // Detect when someone else starts a wave and notify
+  useEffect(() => {
+    const sessions = roomData?.room?.sessions || [];
+    const currentSession = sessions[sessions.length - 1];
+    const currentSessionId = currentSession?.id || null;
+    const prevSessionId = prevSessionIdRef.current;
+
+    // Update the ref with the current session ID
+    prevSessionIdRef.current = currentSessionId;
+
+    // Only notify if:
+    // 1. User has joined the room
+    // 2. There's a new session (different ID from before)
+    // 3. The session was started by someone else (not the current user)
+    // 4. We've already done the initial load (prevSessionId !== undefined)
+    if (
+      userJoined &&
+      currentSession &&
+      currentSessionId !== prevSessionId &&
+      currentSession.startedBy !== currentUserId &&
+      prevSessionId !== undefined
+    ) {
+      const starter = roomData?.room?.users?.find(
+        (u: { id: string }) => u.id === currentSession.startedBy
+      );
+      const starterName = starter?.nickname || 'Someone';
+      notifyWaveStarted(starterName);
+    }
+  }, [roomData?.room?.sessions, roomData?.room?.users, userJoined, currentUserId]);
 
   // Sync timer status to browser tab title
   useEffect(() => {
