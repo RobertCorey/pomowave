@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { createRoom } from '../api';
+import { createRoom, validateRooms, RoomDetails } from '../api';
 
 const styles = {
   container: {
@@ -123,16 +123,94 @@ const styles = {
     fontSize: '0.9rem',
     opacity: 0.7,
   },
+  roomInfo: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  roomMain: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '4px',
+    flex: 1,
+  },
+  roomDetails: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '0.8rem',
+    color: '#78350f',
+    marginTop: '4px',
+  },
+  roomUsers: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '2px',
+  },
+  roomWaves: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    color: '#0369a1',
+    fontWeight: 600,
+  },
+  loadingRooms: {
+    color: '#92400e',
+    fontSize: '0.9rem',
+    textAlign: 'center' as const,
+    padding: '12px',
+  },
 };
 
 function Home() {
   const [nickname, setNickname] = useState('');
   const [roomIds, setRoomIds] = useState<string[]>([]);
+  const [roomDetails, setRoomDetails] = useState<Record<string, RoomDetails>>({});
+  const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const roomUserMap = JSON.parse(localStorage.getItem('roomUserMap') || '{}');
-    setRoomIds(Object.keys(roomUserMap));
+    const validateAndPruneRooms = async () => {
+      const roomUserMap = JSON.parse(localStorage.getItem('roomUserMap') || '{}');
+      const storedRoomIds = Object.keys(roomUserMap);
+
+      if (storedRoomIds.length === 0) {
+        setIsLoadingRooms(false);
+        return;
+      }
+
+      try {
+        const response = await validateRooms(storedRoomIds);
+        const details = response.roomDetails;
+
+        // Prune non-existent rooms from localStorage
+        const validRoomIds: string[] = [];
+        for (const roomId of storedRoomIds) {
+          if (details[roomId] !== null) {
+            validRoomIds.push(roomId);
+          } else {
+            delete roomUserMap[roomId];
+          }
+        }
+
+        // Update localStorage if any rooms were pruned
+        if (validRoomIds.length !== storedRoomIds.length) {
+          localStorage.setItem('roomUserMap', JSON.stringify(roomUserMap));
+        }
+
+        setRoomIds(validRoomIds);
+        setRoomDetails(details);
+      } catch (error) {
+        console.error('Error validating rooms:', error);
+        // Fallback to showing all rooms from localStorage if validation fails
+        setRoomIds(storedRoomIds);
+      } finally {
+        setIsLoadingRooms(false);
+      }
+    };
+
+    validateAndPruneRooms();
   }, []);
 
   const createRoomMutation = useMutation({
@@ -200,22 +278,50 @@ function Home() {
         )}
       </div>
 
-      {roomIds.length > 0 && (
+      {(isLoadingRooms || roomIds.length > 0) && (
         <div style={styles.roomsCard}>
           <h2 style={styles.roomsTitle}>
             🏠 Your Rooms
           </h2>
-          <div style={styles.roomsList}>
-            {roomIds.map((roomId) => (
-              <Link
-                key={roomId}
-                to={`/room/${roomId}`}
-                style={styles.roomLink}
-              >
-                Room <span style={styles.roomCode}>{roomId}</span>
-              </Link>
-            ))}
-          </div>
+          {isLoadingRooms ? (
+            <div style={styles.loadingRooms}>Loading rooms...</div>
+          ) : (
+            <div style={styles.roomsList}>
+              {roomIds.map((roomId) => {
+                const details = roomDetails[roomId];
+                return (
+                  <Link
+                    key={roomId}
+                    to={`/room/${roomId}`}
+                    style={styles.roomLink}
+                  >
+                    <div style={styles.roomInfo}>
+                      <div style={styles.roomMain}>
+                        <div>
+                          Room <span style={styles.roomCode}>{roomId}</span>
+                        </div>
+                        {details && (
+                          <div style={styles.roomDetails}>
+                            <div style={styles.roomUsers}>
+                              {details.users.slice(0, 5).map((user, idx) => (
+                                <span key={idx} title={user.nickname}>{user.emoji}</span>
+                              ))}
+                              {details.users.length > 5 && (
+                                <span style={{ marginLeft: '4px' }}>+{details.users.length - 5}</span>
+                              )}
+                            </div>
+                            <div style={styles.roomWaves}>
+                              🌊 {details.wavesCompleted} wave{details.wavesCompleted !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
