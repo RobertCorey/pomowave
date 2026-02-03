@@ -148,6 +148,37 @@ async function main() {
     }
   });
 
+  // Route to validate multiple rooms and get their details
+  app.post("/api/rooms/validate", async (req, res) => {
+    try {
+      const { roomIds } = req.body;
+
+      if (!roomIds || !Array.isArray(roomIds)) {
+        res.status(400).json({ error: "roomIds array is required" });
+        return;
+      }
+
+      const roomDetails: Record<string, { users: { nickname: string; emoji: string }[]; wavesCompleted: number } | null> = {};
+
+      for (const roomId of roomIds) {
+        const room = await db.rooms.get(roomId);
+        if (room) {
+          roomDetails[roomId] = {
+            users: room.users.map(u => ({ nickname: u.nickname, emoji: u.emoji })),
+            wavesCompleted: room.sessions?.length || 0,
+          };
+        } else {
+          roomDetails[roomId] = null;
+        }
+      }
+
+      res.json({ roomDetails });
+    } catch (error) {
+      console.error('Error validating rooms:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Route to join a room
   app.post("/api/rooms/:roomId/join", async (req, res) => {
     try {
