@@ -213,7 +213,7 @@ export function showWaveStartedNotification(starterName: string): void {
     body: 'Join now to ride together!',
     icon: '🏄',
     tag: 'wave-started',
-    requireInteraction: false,
+    requireInteraction: true, // Keep notification visible until user interacts
   });
 }
 
@@ -229,7 +229,7 @@ export function showCompleteNotification(): void {
     body: 'Great work! Time for a break on the beach.',
     icon: '🏖️',
     tag: 'pomo-complete',
-    requireInteraction: false,
+    requireInteraction: true, // Keep notification visible until user interacts
   });
 }
 

@@ -8,6 +8,7 @@ import SessionHistory from '../components/SessionHistory';
 import HotkeysModal from '../components/HotkeysModal';
 import { notifyTimerStart, notifyTimerComplete, notifyWaveStarted, requestNotificationPermission } from '../services/notifications';
 import { useBackgroundTimer } from '../hooks/useBackgroundTimer';
+import { useSocket } from '../hooks/useSocket';
 
 type User = {
   id: string;
@@ -65,6 +66,19 @@ function Room() {
   const { timeRemaining } = useBackgroundTimer({
     endsAt: roomData?.room?.timer?.endsAt ?? null,
     onComplete: notifyTimerComplete,
+  });
+
+  // Use Socket.io for real-time wave notifications (works even when tab is backgrounded)
+  useSocket({
+    roomId: roomCode,
+    currentUserId,
+    enabled: userJoined,
+    onWaveStarted: useCallback((event: { starterName: string }) => {
+      // Notify the user via sound and browser notification
+      notifyWaveStarted(event.starterName);
+      // Refetch room data to update the UI
+      queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+    }, [queryClient, roomCode]),
   });
 
   // Request notification permission when user joins

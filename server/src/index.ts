@@ -1,4 +1,6 @@
 import express, { Request, Response } from "express";
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import { db } from './db';
 import { Room, User, PomoSession } from './types';
@@ -15,12 +17,47 @@ const getRandomEmoji = (): string => {
 
 // Initialize Express
 const app = express();
+const httpServer = createServer(app);
+
+// CORS configuration
+const corsOrigins = ['https://pomowave-919t.onrender.com', 'http://localhost:5173'];
+
 app.use(express.json());
 app.use(cors({
-  origin: ['https://pomowave-919t.onrender.com', 'http://localhost:5173'],
+  origin: corsOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
+
+// Initialize Socket.io
+const io = new Server(httpServer, {
+  cors: {
+    origin: corsOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+
+  // Join a room to receive updates
+  socket.on('join-room', (roomId: string) => {
+    socket.join(roomId);
+    console.log(`Client ${socket.id} joined room ${roomId}`);
+  });
+
+  // Leave a room
+  socket.on('leave-room', (roomId: string) => {
+    socket.leave(roomId);
+    console.log(`Client ${socket.id} left room ${roomId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
 
 // Set port
 const PORT = process.env.PORT || 3000;
@@ -265,6 +302,15 @@ async function main() {
 
       await db.rooms.update(room);
 
+      // Emit wave-started event to all clients in the room
+      io.to(roomId).emit('wave-started', {
+        sessionId: session.id,
+        startedBy: userId,
+        starterName: userInRoom.nickname,
+        endsAt: room.timer.endsAt,
+        joinDeadline: session.joinDeadline,
+      });
+
       res.json({ room });
     } catch (error) {
       console.error("Error starting timer:", error);
@@ -340,8 +386,8 @@ async function main() {
     res.status(200).send('OK');
   });
 
-  // Start the server
-  const server = app.listen(PORT, () => {
+  // Start the server (using httpServer for Socket.io support)
+  const server = httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
   
