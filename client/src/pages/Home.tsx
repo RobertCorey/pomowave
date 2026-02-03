@@ -303,11 +303,11 @@ function Home() {
                         {details && (
                           <div style={styles.roomDetails}>
                             <div style={styles.roomUsers}>
-                              {details.users.slice(0, 5).map((user, idx) => (
-                                <span key={idx} title={user.nickname}>{user.emoji}</span>
+                              {details.users.slice(0, 3).map((user, idx) => (
+                                <span key={idx}>{user.emoji} {user.nickname}{idx < Math.min(details.users.length, 3) - 1 ? ', ' : ''}</span>
                               ))}
-                              {details.users.length > 5 && (
-                                <span style={{ marginLeft: '4px' }}>+{details.users.length - 5}</span>
+                              {details.users.length > 3 && (
+                                <span> +{details.users.length - 3} more</span>
                               )}
                             </div>
                             <div style={styles.roomWaves}>
