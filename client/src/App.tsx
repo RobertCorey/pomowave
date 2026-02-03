@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
-import NewRoom from "./pages/NewRoom";
 import Room from "./pages/Room";
 
 function App() {
@@ -8,7 +7,7 @@ function App() {
     <div className="app">
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/new" element={<NewRoom />} />
+        <Route path="/new" element={<Navigate to="/" replace />} />
         <Route path="/room/:roomCode" element={<Room />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
