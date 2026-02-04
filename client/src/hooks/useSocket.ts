@@ -1,7 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Socket URL configuration - must match the API server
+const SOCKET_URL = import.meta.env.PROD
+  ? 'https://pomowave.onrender.com'
+  : 'http://localhost:3000';
 
 interface WaveStartedEvent {
   sessionId: string;
