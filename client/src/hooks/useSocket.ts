@@ -11,11 +11,16 @@ interface WaveStartedEvent {
   joinDeadline: number;
 }
 
+interface TimerCompleteEvent {
+  sessionId: string;
+}
+
 interface UseSocketOptions {
   roomId: string | undefined;
   currentUserId: string | null;
   enabled: boolean;
   onWaveStarted?: (event: WaveStartedEvent) => void;
+  onTimerComplete?: (event: TimerCompleteEvent) => void;
 }
 
 /**
@@ -28,14 +33,20 @@ export function useSocket({
   currentUserId,
   enabled,
   onWaveStarted,
+  onTimerComplete,
 }: UseSocketOptions): void {
   const socketRef = useRef<Socket | null>(null);
   const onWaveStartedRef = useRef(onWaveStarted);
+  const onTimerCompleteRef = useRef(onTimerComplete);
 
-  // Keep the callback ref up to date
+  // Keep the callback refs up to date
   useEffect(() => {
     onWaveStartedRef.current = onWaveStarted;
   }, [onWaveStarted]);
+
+  useEffect(() => {
+    onTimerCompleteRef.current = onTimerComplete;
+  }, [onTimerComplete]);
 
   // Handle wave started event
   const handleWaveStarted = useCallback((event: WaveStartedEvent) => {
@@ -45,6 +56,12 @@ export function useSocket({
     }
     onWaveStartedRef.current?.(event);
   }, [currentUserId]);
+
+  // Handle timer complete event (sent by server at exact completion time)
+  const handleTimerComplete = useCallback((event: TimerCompleteEvent) => {
+    console.log('Timer complete event received from server:', event);
+    onTimerCompleteRef.current?.(event);
+  }, []);
 
   useEffect(() => {
     if (!enabled || !roomId) {
@@ -64,6 +81,7 @@ export function useSocket({
     });
 
     socket.on('wave-started', handleWaveStarted);
+    socket.on('timer-complete', handleTimerComplete);
 
     socket.on('disconnect', () => {
       console.log('Socket disconnected');
@@ -80,7 +98,7 @@ export function useSocket({
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [enabled, roomId, handleWaveStarted]);
+  }, [enabled, roomId, handleWaveStarted, handleTimerComplete]);
 }
 
 export default useSocket;

@@ -35,6 +35,8 @@ function Room() {
   const queryClient = useQueryClient();
   // Use undefined to indicate "not initialized", null for "no sessions", string for session ID
   const prevSessionIdRef = useRef<string | null | undefined>(undefined);
+  // Track which session we've already notified completion for (to prevent double notifications)
+  const completedSessionIdRef = useRef<string | null>(null);
 
   // Get the current user's ID for this room
   const currentUserId = useMemo(() => {
@@ -62,13 +64,39 @@ function Room() {
     enabled: !!roomCode,
   });
 
+  // Get the current session ID for deduplication
+  const currentSessionId = useMemo(() => {
+    const sessions = roomData?.room?.sessions || [];
+    return sessions[sessions.length - 1]?.id || null;
+  }, [roomData?.room?.sessions]);
+
+  // Handle timer completion with deduplication
+  // This prevents double notifications when both client-side and server-side detect completion
+  const handleTimerComplete = useCallback((sessionId?: string) => {
+    const effectiveSessionId = sessionId || currentSessionId;
+    if (!effectiveSessionId) return;
+
+    // Check if we've already notified for this session
+    if (completedSessionIdRef.current === effectiveSessionId) {
+      console.log('Already notified completion for session:', effectiveSessionId);
+      return;
+    }
+
+    console.log('Timer complete, notifying for session:', effectiveSessionId);
+    completedSessionIdRef.current = effectiveSessionId;
+    notifyTimerComplete();
+    queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+  }, [currentSessionId, queryClient, roomCode]);
+
   // Use background-aware timer hook for reliable timing even when tab is suspended
+  // This is a fallback in case the socket connection drops
   const { timeRemaining } = useBackgroundTimer({
     endsAt: roomData?.room?.timer?.endsAt ?? null,
-    onComplete: notifyTimerComplete,
+    onComplete: useCallback(() => handleTimerComplete(), [handleTimerComplete]),
   });
 
-  // Use Socket.io for real-time wave notifications (works even when tab is backgrounded)
+  // Use Socket.io for real-time notifications (works even when tab is backgrounded)
+  // Server sends timer-complete at exact completion time - this is the primary notification method
   useSocket({
     roomId: roomCode,
     currentUserId,
@@ -79,6 +107,9 @@ function Room() {
       // Refetch room data to update the UI
       queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
     }, [queryClient, roomCode]),
+    onTimerComplete: useCallback((event: { sessionId: string }) => {
+      handleTimerComplete(event.sessionId);
+    }, [handleTimerComplete]),
   });
 
   // Request notification permission when user joins
