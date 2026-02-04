@@ -33,8 +33,6 @@ function Room() {
   const [joinDeadlineRemaining, setJoinDeadlineRemaining] = useState<number | null>(null);
   const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState(false);
   const queryClient = useQueryClient();
-  // Use undefined to indicate "not initialized", null for "no sessions", string for session ID
-  const prevSessionIdRef = useRef<string | null | undefined>(undefined);
   // Track which session we've already notified completion for (to prevent double notifications)
   const completedSessionIdRef = useRef<string | null>(null);
 
@@ -52,7 +50,7 @@ function Room() {
     }
   }, [roomCode]);
 
-  // Query to fetch and poll room data
+  // Query to fetch room data (real-time updates via WebSocket)
   const {
     data: roomData,
     isLoading: isRoomLoading,
@@ -60,7 +58,6 @@ function Room() {
   } = useQuery({
     queryKey: ["room", roomCode],
     queryFn: () => fetchRoom(roomCode!),
-    refetchInterval: 5000, // Poll every 5 seconds
     enabled: !!roomCode,
   });
 
@@ -110,6 +107,14 @@ function Room() {
     onTimerComplete: useCallback((event: { sessionId: string }) => {
       handleTimerComplete(event.sessionId);
     }, [handleTimerComplete]),
+    onUserJoined: useCallback(() => {
+      // Refetch room data to update the user list
+      queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+    }, [queryClient, roomCode]),
+    onUserJoinedWave: useCallback(() => {
+      // Refetch room data to update the wave participants
+      queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+    }, [queryClient, roomCode]),
   });
 
   // Request notification permission when user joins
@@ -118,36 +123,6 @@ function Room() {
       requestNotificationPermission();
     }
   }, [userJoined]);
-
-  // Detect when someone else starts a wave and notify
-  useEffect(() => {
-    const sessions = roomData?.room?.sessions || [];
-    const currentSession = sessions[sessions.length - 1];
-    const currentSessionId = currentSession?.id || null;
-    const prevSessionId = prevSessionIdRef.current;
-
-    // Update the ref with the current session ID
-    prevSessionIdRef.current = currentSessionId;
-
-    // Only notify if:
-    // 1. User has joined the room
-    // 2. There's a new session (different ID from before)
-    // 3. The session was started by someone else (not the current user)
-    // 4. We've already done the initial load (prevSessionId !== undefined)
-    if (
-      userJoined &&
-      currentSession &&
-      currentSessionId !== prevSessionId &&
-      currentSession.startedBy !== currentUserId &&
-      prevSessionId !== undefined
-    ) {
-      const starter = roomData?.room?.users?.find(
-        (u: { id: string }) => u.id === currentSession.startedBy
-      );
-      const starterName = starter?.nickname || 'Someone';
-      notifyWaveStarted(starterName);
-    }
-  }, [roomData?.room?.sessions, roomData?.room?.users, userJoined, currentUserId]);
 
   // Sync timer status to browser tab title
   useEffect(() => {

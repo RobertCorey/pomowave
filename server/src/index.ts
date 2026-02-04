@@ -303,6 +303,13 @@ async function main() {
       // Add the user to the room
       const updatedRoom = await db.rooms.addUser(roomId, newUser);
 
+      // Emit user-joined event to all clients in the room
+      io.to(roomId).emit('user-joined', {
+        userId: newUser.id,
+        nickname: newUser.nickname,
+        emoji: newUser.emoji,
+      });
+
       // Return the updated room and the user ID
       res.json({ room: updatedRoom, userId });
     } catch (error) {
@@ -440,6 +447,14 @@ async function main() {
       // Add user to participants
       currentSession.participants.push(userId);
       await db.rooms.update(room);
+
+      // Emit user-joined-wave event to all clients in the room
+      io.to(roomId).emit('user-joined-wave', {
+        sessionId: currentSession.id,
+        userId,
+        nickname: userInRoom.nickname,
+        emoji: userInRoom.emoji,
+      });
 
       res.json({ room });
     } catch (error) {

@@ -18,12 +18,27 @@ interface TimerCompleteEvent {
   sessionId: string;
 }
 
+interface UserJoinedEvent {
+  userId: string;
+  nickname: string;
+  emoji: string;
+}
+
+interface UserJoinedWaveEvent {
+  sessionId: string;
+  userId: string;
+  nickname: string;
+  emoji: string;
+}
+
 interface UseSocketOptions {
   roomId: string | undefined;
   currentUserId: string | null;
   enabled: boolean;
   onWaveStarted?: (event: WaveStartedEvent) => void;
   onTimerComplete?: (event: TimerCompleteEvent) => void;
+  onUserJoined?: (event: UserJoinedEvent) => void;
+  onUserJoinedWave?: (event: UserJoinedWaveEvent) => void;
 }
 
 /**
@@ -37,10 +52,14 @@ export function useSocket({
   enabled,
   onWaveStarted,
   onTimerComplete,
+  onUserJoined,
+  onUserJoinedWave,
 }: UseSocketOptions): void {
   const socketRef = useRef<Socket | null>(null);
   const onWaveStartedRef = useRef(onWaveStarted);
   const onTimerCompleteRef = useRef(onTimerComplete);
+  const onUserJoinedRef = useRef(onUserJoined);
+  const onUserJoinedWaveRef = useRef(onUserJoinedWave);
 
   // Keep the callback refs up to date
   useEffect(() => {
@@ -50,6 +69,14 @@ export function useSocket({
   useEffect(() => {
     onTimerCompleteRef.current = onTimerComplete;
   }, [onTimerComplete]);
+
+  useEffect(() => {
+    onUserJoinedRef.current = onUserJoined;
+  }, [onUserJoined]);
+
+  useEffect(() => {
+    onUserJoinedWaveRef.current = onUserJoinedWave;
+  }, [onUserJoinedWave]);
 
   // Handle wave started event
   const handleWaveStarted = useCallback((event: WaveStartedEvent) => {
@@ -64,6 +91,18 @@ export function useSocket({
   const handleTimerComplete = useCallback((event: TimerCompleteEvent) => {
     console.log('Timer complete event received from server:', event);
     onTimerCompleteRef.current?.(event);
+  }, []);
+
+  // Handle user joined event
+  const handleUserJoined = useCallback((event: UserJoinedEvent) => {
+    console.log('User joined room:', event);
+    onUserJoinedRef.current?.(event);
+  }, []);
+
+  // Handle user joined wave event
+  const handleUserJoinedWave = useCallback((event: UserJoinedWaveEvent) => {
+    console.log('User joined wave:', event);
+    onUserJoinedWaveRef.current?.(event);
   }, []);
 
   useEffect(() => {
@@ -85,6 +124,8 @@ export function useSocket({
 
     socket.on('wave-started', handleWaveStarted);
     socket.on('timer-complete', handleTimerComplete);
+    socket.on('user-joined', handleUserJoined);
+    socket.on('user-joined-wave', handleUserJoinedWave);
 
     socket.on('disconnect', () => {
       console.log('Socket disconnected');
@@ -101,7 +142,7 @@ export function useSocket({
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [enabled, roomId, handleWaveStarted, handleTimerComplete]);
+  }, [enabled, roomId, handleWaveStarted, handleTimerComplete, handleUserJoined, handleUserJoinedWave]);
 }
 
 export default useSocket;
