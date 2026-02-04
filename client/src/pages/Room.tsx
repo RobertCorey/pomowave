@@ -7,6 +7,8 @@ import WaveScene from '../components/WaveScene';
 import SessionHistory from '../components/SessionHistory';
 import HotkeysModal from '../components/HotkeysModal';
 import { notifyTimerStart, notifyTimerComplete, notifyWaveStarted, requestNotificationPermission } from '../services/notifications';
+import { useBackgroundTimer } from '../hooks/useBackgroundTimer';
+import { useSocket } from '../hooks/useSocket';
 
 type User = {
   id: string;
@@ -28,13 +30,13 @@ function Room() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const [nickname, setNickname] = useState("");
   const [userJoined, setUserJoined] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [joinDeadlineRemaining, setJoinDeadlineRemaining] = useState<number | null>(null);
   const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState(false);
   const queryClient = useQueryClient();
-  const prevTimeRemainingRef = useRef<number | null>(null);
   // Use undefined to indicate "not initialized", null for "no sessions", string for session ID
   const prevSessionIdRef = useRef<string | null | undefined>(undefined);
+  // Track which session we've already notified completion for (to prevent double notifications)
+  const completedSessionIdRef = useRef<string | null>(null);
 
   // Get the current user's ID for this room
   const currentUserId = useMemo(() => {
@@ -62,24 +64,53 @@ function Room() {
     enabled: !!roomCode,
   });
 
-  // Update time remaining when room data changes or every second
-  useEffect(() => {
-    const timer = roomData?.room?.timer;
-    if (!timer) {
-      setTimeRemaining(null);
+  // Get the current session ID for deduplication
+  const currentSessionId = useMemo(() => {
+    const sessions = roomData?.room?.sessions || [];
+    return sessions[sessions.length - 1]?.id || null;
+  }, [roomData?.room?.sessions]);
+
+  // Handle timer completion with deduplication
+  // This prevents double notifications when both client-side and server-side detect completion
+  const handleTimerComplete = useCallback((sessionId?: string) => {
+    const effectiveSessionId = sessionId || currentSessionId;
+    if (!effectiveSessionId) return;
+
+    // Check if we've already notified for this session
+    if (completedSessionIdRef.current === effectiveSessionId) {
+      console.log('Already notified completion for session:', effectiveSessionId);
       return;
     }
 
-    const updateTimeRemaining = () => {
-      const remaining = Math.max(0, timer.endsAt - Date.now());
-      setTimeRemaining(remaining);
-    };
+    console.log('Timer complete, notifying for session:', effectiveSessionId);
+    completedSessionIdRef.current = effectiveSessionId;
+    notifyTimerComplete();
+    queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+  }, [currentSessionId, queryClient, roomCode]);
 
-    updateTimeRemaining();
-    const interval = setInterval(updateTimeRemaining, 1000);
+  // Use background-aware timer hook for reliable timing even when tab is suspended
+  // This is a fallback in case the socket connection drops
+  const { timeRemaining } = useBackgroundTimer({
+    endsAt: roomData?.room?.timer?.endsAt ?? null,
+    onComplete: useCallback(() => handleTimerComplete(), [handleTimerComplete]),
+  });
 
-    return () => clearInterval(interval);
-  }, [roomData?.room?.timer?.endsAt]);
+  // Use Socket.io for real-time notifications (works even when tab is backgrounded)
+  // Server sends timer-complete at exact completion time - this is the primary notification method
+  useSocket({
+    roomId: roomCode,
+    currentUserId,
+    enabled: userJoined,
+    onWaveStarted: useCallback((event: { starterName: string }) => {
+      // Notify the user via sound and browser notification
+      notifyWaveStarted(event.starterName);
+      // Refetch room data to update the UI
+      queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+    }, [queryClient, roomCode]),
+    onTimerComplete: useCallback((event: { sessionId: string }) => {
+      handleTimerComplete(event.sessionId);
+    }, [handleTimerComplete]),
+  });
 
   // Request notification permission when user joins
   useEffect(() => {
@@ -87,17 +118,6 @@ function Room() {
       requestNotificationPermission();
     }
   }, [userJoined]);
-
-  // Detect timer completion and notify
-  useEffect(() => {
-    const prevTime = prevTimeRemainingRef.current;
-    prevTimeRemainingRef.current = timeRemaining;
-
-    // Timer just completed: was running (> 0) and now is 0
-    if (prevTime !== null && prevTime > 0 && timeRemaining === 0) {
-      notifyTimerComplete();
-    }
-  }, [timeRemaining]);
 
   // Detect when someone else starts a wave and notify
   useEffect(() => {
@@ -149,27 +169,25 @@ function Room() {
     };
   }, [timeRemaining]);
 
-  // Update join deadline remaining time
-  useEffect(() => {
+  // Get the join deadline from the current session
+  const joinDeadlineEndsAt = useMemo(() => {
     const sessions = roomData?.room?.sessions || [];
     const currentSession = sessions[sessions.length - 1];
-    const joinDeadline = currentSession?.joinDeadline;
-
-    if (!joinDeadline || !roomData?.room?.timer) {
-      setJoinDeadlineRemaining(null);
-      return;
+    if (!currentSession?.joinDeadline || !roomData?.room?.timer) {
+      return null;
     }
-
-    const updateJoinDeadlineRemaining = () => {
-      const remaining = Math.max(0, joinDeadline - Date.now());
-      setJoinDeadlineRemaining(remaining);
-    };
-
-    updateJoinDeadlineRemaining();
-    const interval = setInterval(updateJoinDeadlineRemaining, 1000);
-
-    return () => clearInterval(interval);
+    return currentSession.joinDeadline;
   }, [roomData?.room?.sessions, roomData?.room?.timer]);
+
+  // Use background-aware timer for join deadline as well
+  const { timeRemaining: joinDeadlineTimeRemaining } = useBackgroundTimer({
+    endsAt: joinDeadlineEndsAt,
+  });
+
+  // Sync joinDeadlineRemaining state (for backwards compatibility with existing code)
+  useEffect(() => {
+    setJoinDeadlineRemaining(joinDeadlineTimeRemaining);
+  }, [joinDeadlineTimeRemaining]);
 
   // Mutation to start a timer
   const startTimerMutation = useMutation({

@@ -80,5 +80,29 @@ export const db = {
       await this.update(room);
       return room;
     },
+
+    async getAllWithActiveTimers(): Promise<Room[]> {
+      const rooms: Room[] = [];
+      const pattern = `${KEY_PREFIX}room:*`;
+      let cursor = '0';
+
+      do {
+        const [nextCursor, keys] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+
+        for (const key of keys) {
+          const roomData = await redisClient.get(key);
+          if (roomData) {
+            const room = JSON.parse(roomData) as Room;
+            // Only include rooms with active timers (timer exists and hasn't ended)
+            if (room.timer && room.timer.endsAt > Date.now()) {
+              rooms.push(room);
+            }
+          }
+        }
+      } while (cursor !== '0');
+
+      return rooms;
+    },
   },
 };

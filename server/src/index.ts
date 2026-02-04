@@ -1,4 +1,6 @@
 import express, { Request, Response } from "express";
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import { db } from './db';
 import { Room, User, PomoSession } from './types';
@@ -15,15 +17,96 @@ const getRandomEmoji = (): string => {
 
 // Initialize Express
 const app = express();
+const httpServer = createServer(app);
+
+// CORS configuration
+const corsOrigins = ['https://pomowave-919t.onrender.com', 'http://localhost:5173'];
+
 app.use(express.json());
 app.use(cors({
-  origin: ['https://pomowave-919t.onrender.com', 'http://localhost:5173'],
+  origin: corsOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
 
+// Initialize Socket.io
+const io = new Server(httpServer, {
+  cors: {
+    origin: corsOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+
+  // Join a room to receive updates
+  socket.on('join-room', (roomId: string) => {
+    socket.join(roomId);
+    console.log(`Client ${socket.id} joined room ${roomId}`);
+  });
+
+  // Leave a room
+  socket.on('leave-room', (roomId: string) => {
+    socket.leave(roomId);
+    console.log(`Client ${socket.id} left room ${roomId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
 // Set port
 const PORT = process.env.PORT || 3000;
+
+// Store active timer timeouts by room ID (for server-side timer completion)
+const activeTimers = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Schedule a timer completion event for a room.
+ * The server will emit 'timer-complete' to all clients in the room when the timer ends.
+ * This is more reliable than client-side timers because the server isn't throttled.
+ */
+function scheduleTimerCompletion(roomId: string, endsAt: number, sessionId: string): void {
+  // Clear any existing timer for this room
+  const existingTimer = activeTimers.get(roomId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  const timeUntilEnd = endsAt - Date.now();
+
+  if (timeUntilEnd <= 0) {
+    // Timer already ended, emit immediately
+    io.to(roomId).emit('timer-complete', { sessionId });
+    return;
+  }
+
+  console.log(`Scheduling timer completion for room ${roomId} in ${Math.round(timeUntilEnd / 1000)}s`);
+
+  const timeout = setTimeout(() => {
+    console.log(`Timer completed for room ${roomId}`);
+    io.to(roomId).emit('timer-complete', { sessionId });
+    activeTimers.delete(roomId);
+
+    // Clear the timer from the room in the database
+    db.rooms.get(roomId).then((room) => {
+      if (room && room.timer) {
+        room.timer = undefined;
+        db.rooms.update(room).catch((err) => {
+          console.error('Error clearing timer from room:', err);
+        });
+      }
+    }).catch((err) => {
+      console.error('Error getting room to clear timer:', err);
+    });
+  }, timeUntilEnd);
+
+  activeTimers.set(roomId, timeout);
+}
 
 // Helper function to generate a room code
 const generateRoomCode = (): string => {
@@ -75,6 +158,23 @@ const generateRoomCode = (): string => {
 async function main() {
   // Initialize the database connection
   await db.init();
+
+  // Restore any active timers from the database (in case of server restart)
+  try {
+    const roomsWithTimers = await db.rooms.getAllWithActiveTimers();
+    for (const room of roomsWithTimers) {
+      if (room.timer && room.sessions && room.sessions.length > 0) {
+        const currentSession = room.sessions[room.sessions.length - 1];
+        console.log(`Restoring timer for room ${room.id}, ends in ${Math.round((room.timer.endsAt - Date.now()) / 1000)}s`);
+        scheduleTimerCompletion(room.id, room.timer.endsAt, currentSession.id);
+      }
+    }
+    if (roomsWithTimers.length > 0) {
+      console.log(`Restored ${roomsWithTimers.length} active timer(s)`);
+    }
+  } catch (error) {
+    console.error('Error restoring active timers:', error);
+  }
 
   // Route to get the current face of the coin
   app.get("/api/coin-face", async (req: Request, res: Response) => {
@@ -265,6 +365,19 @@ async function main() {
 
       await db.rooms.update(room);
 
+      // Emit wave-started event to all clients in the room
+      io.to(roomId).emit('wave-started', {
+        sessionId: session.id,
+        startedBy: userId,
+        starterName: userInRoom.nickname,
+        endsAt: room.timer.endsAt,
+        joinDeadline: session.joinDeadline,
+      });
+
+      // Schedule server-side timer completion
+      // This ensures clients get notified even if their tab is backgrounded
+      scheduleTimerCompletion(roomId, room.timer.endsAt, session.id);
+
       res.json({ room });
     } catch (error) {
       console.error("Error starting timer:", error);
@@ -340,8 +453,8 @@ async function main() {
     res.status(200).send('OK');
   });
 
-  // Start the server
-  const server = app.listen(PORT, () => {
+  // Start the server (using httpServer for Socket.io support)
+  const server = httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
   

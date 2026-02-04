@@ -17,6 +17,21 @@ function getAudioContext(): AudioContext {
 }
 
 /**
+ * Resume the AudioContext if it was suspended (e.g., when tab was backgrounded).
+ * Chrome suspends AudioContext in background tabs to save resources.
+ * Call this when the tab becomes visible again.
+ */
+export async function resumeAudioContext(): Promise<void> {
+  if (audioContext && audioContext.state === 'suspended') {
+    try {
+      await audioContext.resume();
+    } catch (err) {
+      console.warn('Failed to resume AudioContext:', err);
+    }
+  }
+}
+
+/**
  * Play a gentle wave swoosh sound for timer start
  * Creates a soft, ocean-like whoosh effect
  */
@@ -198,7 +213,7 @@ export function showWaveStartedNotification(starterName: string): void {
     body: 'Join now to ride together!',
     icon: '🏄',
     tag: 'wave-started',
-    requireInteraction: false,
+    requireInteraction: true, // Keep notification visible until user interacts
   });
 }
 
@@ -214,7 +229,7 @@ export function showCompleteNotification(): void {
     body: 'Great work! Time for a break on the beach.',
     icon: '🏖️',
     tag: 'pomo-complete',
-    requireInteraction: false,
+    requireInteraction: true, // Keep notification visible until user interacts
   });
 }
 
