@@ -1,11 +1,8 @@
-// API base URL configuration
-const API_BASE_URL = import.meta.env.PROD 
-  ? 'https://pomowave.onrender.com/api' 
-  : '/api';
+import { config } from './config';
 
 // API function to create a room
 export const createRoom = async (nickname: string) => {
-  const response = await fetch(`${API_BASE_URL}/rooms`, {
+  const response = await fetch(`${config.apiBaseUrl}/rooms`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -22,7 +19,7 @@ export const createRoom = async (nickname: string) => {
 
 // API function to get room data
 export const fetchRoom = async (roomCode: string) => {
-  const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}`);
+  const response = await fetch(`${config.apiBaseUrl}/rooms/${roomCode}`);
   if (!response.ok) {
     throw new Error(`HTTP error: ${response.status}`);
   }
@@ -31,7 +28,7 @@ export const fetchRoom = async (roomCode: string) => {
 
 // API function to join a room
 export const joinRoom = async (roomCode: string, nickname: string) => {
-  const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}/join`, {
+  const response = await fetch(`${config.apiBaseUrl}/rooms/${roomCode}/join`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -46,7 +43,7 @@ export const joinRoom = async (roomCode: string, nickname: string) => {
 
 // API function to start a timer in a room
 export const startTimer = async (roomCode: string, userId: string, durationMinutes: number = 25) => {
-  const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}/timer`, {
+  const response = await fetch(`${config.apiBaseUrl}/rooms/${roomCode}/timer`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -61,7 +58,7 @@ export const startTimer = async (roomCode: string, userId: string, durationMinut
 
 // API function to join an active wave
 export const joinWave = async (roomCode: string, userId: string) => {
-  const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}/wave/join`, {
+  const response = await fetch(`${config.apiBaseUrl}/rooms/${roomCode}/wave/join`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -82,7 +79,7 @@ export type RoomDetails = {
 
 // API function to validate multiple rooms and get their details
 export const validateRooms = async (roomIds: string[]): Promise<{ roomDetails: Record<string, RoomDetails> }> => {
-  const response = await fetch(`${API_BASE_URL}/rooms/validate`, {
+  const response = await fetch(`${config.apiBaseUrl}/rooms/validate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

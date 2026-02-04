@@ -1,10 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-
-// Socket URL configuration - must match the API server
-const SOCKET_URL = import.meta.env.PROD
-  ? 'https://pomowave.onrender.com'
-  : 'http://localhost:3000';
+import { config } from '../config';
 
 interface WaveStartedEvent {
   sessionId: string;
@@ -72,7 +68,7 @@ export function useSocket({
     }
 
     // Create socket connection
-    const socket = io(SOCKET_URL, {
+    const socket = io(config.socketUrl, {
       transports: ['websocket', 'polling'],
     });
 
