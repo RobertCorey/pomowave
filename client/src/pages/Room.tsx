@@ -203,7 +203,7 @@ function Room() {
   // Copy room URL to clipboard
   const copyRoomLink = () => {
     const roomUrl = window.location.href;
-    const message = `Come do pomos with me!\n${roomUrl}`;
+    const message = `Join my Pomowave session! We'll use the Pomodoro technique to stay focused — work in timed sprints with short breaks in between. Click the link to join and let's get stuff done together!\n\n${roomUrl}`;
     navigator.clipboard
       .writeText(message)
       .then(() => alert("Room link copied to clipboard!"))
