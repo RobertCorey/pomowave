@@ -56,12 +56,17 @@ export function useSocket({
   onUserJoinedWave,
 }: UseSocketOptions): void {
   const socketRef = useRef<Socket | null>(null);
+  const currentUserIdRef = useRef(currentUserId);
   const onWaveStartedRef = useRef(onWaveStarted);
   const onTimerCompleteRef = useRef(onTimerComplete);
   const onUserJoinedRef = useRef(onUserJoined);
   const onUserJoinedWaveRef = useRef(onUserJoinedWave);
 
-  // Keep the callback refs up to date
+  // Keep refs up to date without causing socket reconnection
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
+
   useEffect(() => {
     onWaveStartedRef.current = onWaveStarted;
   }, [onWaveStarted]);
@@ -81,11 +86,11 @@ export function useSocket({
   // Handle wave started event
   const handleWaveStarted = useCallback((event: WaveStartedEvent) => {
     // Don't notify if the current user started the wave
-    if (event.startedBy === currentUserId) {
+    if (event.startedBy === currentUserIdRef.current) {
       return;
     }
     onWaveStartedRef.current?.(event);
-  }, [currentUserId]);
+  }, []);
 
   // Handle timer complete event (sent by server at exact completion time)
   const handleTimerComplete = useCallback((event: TimerCompleteEvent) => {
