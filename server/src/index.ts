@@ -329,6 +329,11 @@ async function main() {
         return;
       }
 
+      if (typeof durationMinutes !== "number" || durationMinutes <= 0 || durationMinutes > 120) {
+        res.status(400).json({ error: "durationMinutes must be a number between 1 and 120" });
+        return;
+      }
+
       const room = await db.rooms.get(roomId);
 
       if (!room) {
@@ -503,7 +508,7 @@ async function main() {
     console.error('Uncaught exception:', error);
     gracefulShutdown();
   });
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', (reason) => {
     console.error('Unhandled Promise rejection:', reason);
     gracefulShutdown();
   });

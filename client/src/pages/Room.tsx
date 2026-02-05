@@ -40,6 +40,7 @@ function Room() {
   const currentUserId = useMemo(() => {
     const roomUserMap = JSON.parse(localStorage.getItem("roomUserMap") || "{}");
     return roomCode ? roomUserMap[roomCode] : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode, userJoined]);
 
   // Check if the user has already joined this room
@@ -223,7 +224,10 @@ function Room() {
   }, [roomData?.room?.timer, roomData?.room?.users]);
 
   const users: User[] = roomData?.room?.users || [];
-  const sessions: PomoSession[] = roomData?.room?.sessions || [];
+  const sessions: PomoSession[] = useMemo(
+    () => roomData?.room?.sessions || [],
+    [roomData?.room?.sessions]
+  );
 
   // Get the current active session's participants (most recent session when timer is active)
   const activeSessionParticipants = useMemo(() => {

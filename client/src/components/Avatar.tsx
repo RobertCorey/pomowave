@@ -1,7 +1,6 @@
 type AvatarProps = {
   nickname: string;
   emoji: string;
-  isActive?: boolean; // true when surfing (pomo mode)
   size?: 'small' | 'medium';
 };
 
