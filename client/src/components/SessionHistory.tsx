@@ -1,3 +1,5 @@
+import { memo, useMemo, useCallback } from 'react';
+
 type User = {
   id: string;
   nickname: string;
@@ -94,22 +96,26 @@ const styles = {
   },
 };
 
-function SessionHistory({ sessions, users }: SessionHistoryProps) {
-  const getUserById = (id: string) => users.find(u => u.id === id);
+/** Pure function hoisted outside component */
+function formatSessionTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
 
-  const formatSessionTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
 
-    if (isToday) {
-      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    }
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
+const SessionHistory = memo(function SessionHistory({ sessions, users }: SessionHistoryProps) {
+  const getUserById = useCallback((id: string) => users.find(u => u.id === id), [users]);
 
-  // Show most recent sessions first, limit to 5
-  const recentSessions = [...sessions].reverse().slice(0, 5);
+  // Memoize the reversed+sliced array to avoid re-computation on every render
+  const recentSessions = useMemo(
+    () => [...sessions].reverse().slice(0, 5),
+    [sessions]
+  );
 
   return (
     <div style={styles.container}>
@@ -145,7 +151,7 @@ function SessionHistory({ sessions, users }: SessionHistoryProps) {
                           {user?.emoji || '🐚'}
                         </span>
                         <span>{user?.nickname || 'Unknown'}</span>
-                        {isStarter && <span style={styles.starterBadge}>⭐</span>}
+                        {isStarter ? <span style={styles.starterBadge}>⭐</span> : null}
                       </div>
                     );
                   })}
@@ -157,6 +163,6 @@ function SessionHistory({ sessions, users }: SessionHistoryProps) {
       )}
     </div>
   );
-}
+});
 
 export default SessionHistory;

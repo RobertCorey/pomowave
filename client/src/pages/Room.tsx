@@ -26,30 +26,126 @@ type PomoSession = {
   joinDeadline?: number;
 };
 
+/** Helper to read the roomUserMap from localStorage */
+function getRoomUserMap(): Record<string, string> {
+  return JSON.parse(localStorage.getItem("roomUserMap") || "{}");
+}
+
+/** Pure function hoisted outside component to avoid re-creation on every render */
+function formatTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+/** Static styles hoisted outside component (rendering-hoist-jsx) */
+const pageStyles = {
+  container: {
+    maxWidth: '400px',
+    margin: '0 auto',
+    padding: '16px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+  },
+  roomCode: {
+    fontSize: '0.875rem',
+    color: '#64748b',
+    fontWeight: 500,
+  },
+  shareButton: {
+    background: 'transparent',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    padding: '8px 12px',
+    fontSize: '0.75rem',
+    color: '#64748b',
+    cursor: 'pointer',
+  },
+  headerButtons: {
+    display: 'flex',
+    gap: '8px',
+  },
+  hotkeysButton: {
+    background: 'transparent',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    padding: '8px 12px',
+    fontSize: '0.75rem',
+    color: '#64748b',
+    cursor: 'pointer',
+  },
+  joinContainer: {
+    background: 'linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%)',
+    borderRadius: '16px',
+    padding: '24px',
+    textAlign: 'center' as const,
+  },
+  joinTitle: {
+    fontSize: '1.25rem',
+    fontWeight: 600,
+    color: '#0369a1',
+    marginBottom: '16px',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+  },
+  input: {
+    padding: '12px 16px',
+    borderRadius: '12px',
+    border: '2px solid #bae6fd',
+    fontSize: '1rem',
+    outline: 'none',
+    textAlign: 'center' as const,
+  },
+  joinButton: {
+    background: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    padding: '14px',
+    fontSize: '1rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  error: {
+    color: '#dc2626',
+    fontSize: '0.875rem',
+    marginTop: '8px',
+  },
+  loading: {
+    textAlign: 'center' as const,
+    padding: '40px',
+    color: '#64748b',
+  },
+};
+
 function Room() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const [nickname, setNickname] = useState("");
-  const [userJoined, setUserJoined] = useState(false);
-  const [joinDeadlineRemaining, setJoinDeadlineRemaining] = useState<number | null>(null);
+  // Lazy state initialization from localStorage (rerender-lazy-state-init)
+  const [userJoined, setUserJoined] = useState(() => {
+    const roomUserMap = getRoomUserMap();
+    return !!(roomCode && roomUserMap[roomCode]);
+  });
   const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState(false);
   const queryClient = useQueryClient();
   // Track which session we've already notified completion for (to prevent double notifications)
   const completedSessionIdRef = useRef<string | null>(null);
 
-  // Get the current user's ID for this room
+  // Derive currentUserId during render instead of caching in stale useMemo (rerender-derived-state-no-effect)
   const currentUserId = useMemo(() => {
-    const roomUserMap = JSON.parse(localStorage.getItem("roomUserMap") || "{}");
-    return roomCode ? roomUserMap[roomCode] : null;
+    const roomUserMap = getRoomUserMap();
+    return roomCode ? roomUserMap[roomCode] ?? null : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode, userJoined]);
-
-  // Check if the user has already joined this room
-  useEffect(() => {
-    const roomUserMap = JSON.parse(localStorage.getItem("roomUserMap") || "{}");
-    if (roomCode && roomUserMap[roomCode]) {
-      setUserJoined(true);
-    }
-  }, [roomCode]);
 
   // Query to fetch room data (real-time updates via WebSocket)
   const {
@@ -86,11 +182,33 @@ function Room() {
     queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
   }, [currentSessionId, queryClient, roomCode]);
 
+  // Define callbacks before passing to hooks (avoid inline useCallback at call sites)
+  const handleBackgroundTimerComplete = useCallback(() => {
+    handleTimerComplete();
+  }, [handleTimerComplete]);
+
+  const handleSocketWaveStarted = useCallback((event: { starterName: string }) => {
+    notifyWaveStarted(event.starterName);
+    queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+  }, [queryClient, roomCode]);
+
+  const handleSocketTimerComplete = useCallback((event: { sessionId: string }) => {
+    handleTimerComplete(event.sessionId);
+  }, [handleTimerComplete]);
+
+  const handleSocketUserJoined = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+  }, [queryClient, roomCode]);
+
+  const handleSocketUserJoinedWave = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+  }, [queryClient, roomCode]);
+
   // Use background-aware timer hook for reliable timing even when tab is suspended
   // This is a fallback in case the socket connection drops
   const { timeRemaining } = useBackgroundTimer({
     endsAt: roomData?.room?.timer?.endsAt ?? null,
-    onComplete: useCallback(() => handleTimerComplete(), [handleTimerComplete]),
+    onComplete: handleBackgroundTimerComplete,
   });
 
   // Use Socket.io for real-time notifications (works even when tab is backgrounded)
@@ -99,23 +217,10 @@ function Room() {
     roomId: roomCode,
     currentUserId,
     enabled: userJoined,
-    onWaveStarted: useCallback((event: { starterName: string }) => {
-      // Notify the user via sound and browser notification
-      notifyWaveStarted(event.starterName);
-      // Refetch room data to update the UI
-      queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
-    }, [queryClient, roomCode]),
-    onTimerComplete: useCallback((event: { sessionId: string }) => {
-      handleTimerComplete(event.sessionId);
-    }, [handleTimerComplete]),
-    onUserJoined: useCallback(() => {
-      // Refetch room data to update the user list
-      queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
-    }, [queryClient, roomCode]),
-    onUserJoinedWave: useCallback(() => {
-      // Refetch room data to update the wave participants
-      queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
-    }, [queryClient, roomCode]),
+    onWaveStarted: handleSocketWaveStarted,
+    onTimerComplete: handleSocketTimerComplete,
+    onUserJoined: handleSocketUserJoined,
+    onUserJoinedWave: handleSocketUserJoinedWave,
   });
 
   // Request notification permission when user joins
@@ -127,13 +232,6 @@ function Room() {
 
   // Sync timer status to browser tab title
   useEffect(() => {
-    const formatTime = (ms: number) => {
-      const totalSeconds = Math.floor(ms / 1000);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    };
-
     if (timeRemaining !== null && timeRemaining > 0) {
       document.title = `${formatTime(timeRemaining)} - Pomowave`;
     } else {
@@ -156,14 +254,10 @@ function Room() {
   }, [roomData?.room?.sessions, roomData?.room?.timer]);
 
   // Use background-aware timer for join deadline as well
-  const { timeRemaining: joinDeadlineTimeRemaining } = useBackgroundTimer({
+  // Use the timer value directly instead of syncing via effect (rerender-derived-state-no-effect)
+  const { timeRemaining: joinDeadlineRemaining } = useBackgroundTimer({
     endsAt: joinDeadlineEndsAt,
   });
-
-  // Sync joinDeadlineRemaining state (for backwards compatibility with existing code)
-  useEffect(() => {
-    setJoinDeadlineRemaining(joinDeadlineTimeRemaining);
-  }, [joinDeadlineTimeRemaining]);
 
   // Mutation to start a timer
   const startTimerMutation = useMutation({
@@ -187,9 +281,7 @@ function Room() {
     mutationFn: () => joinRoom(roomCode!, nickname),
     onSuccess: (data) => {
       // Save the user ID to localStorage for this room
-      const roomUserMap = JSON.parse(
-        localStorage.getItem("roomUserMap") || "{}"
-      );
+      const roomUserMap = getRoomUserMap();
       roomUserMap[roomCode!] = data.userId;
       localStorage.setItem("roomUserMap", JSON.stringify(roomUserMap));
 
@@ -202,13 +294,13 @@ function Room() {
   });
 
   // Copy room URL to clipboard
-  const copyRoomLink = () => {
+  const copyRoomLink = useCallback(() => {
     const roomUrl = window.location.href;
     navigator.clipboard
       .writeText(roomUrl)
       .then(() => alert("Room link copied to clipboard!"))
       .catch((err) => console.error("Could not copy room link:", err));
-  };
+  }, []);
 
   // Check if timer is active (has time remaining)
   const isTimerActive = timeRemaining !== null && timeRemaining > 0;
@@ -277,92 +369,11 @@ function Room() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const pageStyles = {
-    container: {
-      maxWidth: '400px',
-      margin: '0 auto',
-      padding: '16px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    },
-    header: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '16px',
-    },
-    roomCode: {
-      fontSize: '0.875rem',
-      color: '#64748b',
-      fontWeight: 500,
-    },
-    shareButton: {
-      background: 'transparent',
-      border: '1px solid #e2e8f0',
-      borderRadius: '8px',
-      padding: '8px 12px',
-      fontSize: '0.75rem',
-      color: '#64748b',
-      cursor: 'pointer',
-    },
-    headerButtons: {
-      display: 'flex',
-      gap: '8px',
-    },
-    hotkeysButton: {
-      background: 'transparent',
-      border: '1px solid #e2e8f0',
-      borderRadius: '8px',
-      padding: '8px 12px',
-      fontSize: '0.75rem',
-      color: '#64748b',
-      cursor: 'pointer',
-    },
-    joinContainer: {
-      background: 'linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%)',
-      borderRadius: '16px',
-      padding: '24px',
-      textAlign: 'center' as const,
-    },
-    joinTitle: {
-      fontSize: '1.25rem',
-      fontWeight: 600,
-      color: '#0369a1',
-      marginBottom: '16px',
-    },
-    form: {
-      display: 'flex',
-      flexDirection: 'column' as const,
-      gap: '12px',
-    },
-    input: {
-      padding: '12px 16px',
-      borderRadius: '12px',
-      border: '2px solid #bae6fd',
-      fontSize: '1rem',
-      outline: 'none',
-      textAlign: 'center' as const,
-    },
-    joinButton: {
-      background: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
-      color: 'white',
-      border: 'none',
-      borderRadius: '12px',
-      padding: '14px',
-      fontSize: '1rem',
-      fontWeight: 600,
-      cursor: 'pointer',
-    },
-    error: {
-      color: '#dc2626',
-      fontSize: '0.875rem',
-      marginTop: '8px',
-    },
-    loading: {
-      textAlign: 'center' as const,
-      padding: '40px',
-      color: '#64748b',
-    },
-  };
+  // Stable callback for onClose (avoid creating new function on every render)
+  const closeHotkeysModal = useCallback(() => setIsHotkeysModalOpen(false), []);
+  const openHotkeysModal = useCallback(() => setIsHotkeysModalOpen(true), []);
+  const handleStartTimer = useCallback(() => startTimerMutation.mutate(), [startTimerMutation]);
+  const handleJoinWave = useCallback(() => joinWaveMutation.mutate(), [joinWaveMutation]);
 
   if (isRoomLoading) {
     return <div style={pageStyles.loading}>Loading... 🌊</div>;
@@ -381,7 +392,7 @@ function Room() {
       <div style={pageStyles.header}>
         <span style={pageStyles.roomCode}>🏝️ {roomCode}</span>
         <div style={pageStyles.headerButtons}>
-          <button style={pageStyles.hotkeysButton} onClick={() => setIsHotkeysModalOpen(true)}>
+          <button style={pageStyles.hotkeysButton} onClick={openHotkeysModal}>
             Hotkeys
           </button>
           <button style={pageStyles.shareButton} onClick={copyRoomLink}>
@@ -421,11 +432,11 @@ function Room() {
               {joinRoomMutation.isPending ? "Joining..." : "🐚 Join Room"}
             </button>
           </form>
-          {joinRoomMutation.isError && (
+          {joinRoomMutation.isError ? (
             <div style={pageStyles.error}>
               Error: {(joinRoomMutation.error as Error).message}
             </div>
-          )}
+          ) : null}
         </div>
       ) : (
         <>
@@ -438,23 +449,23 @@ function Room() {
               currentUserId={currentUserId}
               canJoinWave={canJoinWave}
               joinDeadlineRemaining={joinDeadlineRemaining}
-              onJoinWave={() => joinWaveMutation.mutate()}
+              onJoinWave={handleJoinWave}
               isJoiningWave={joinWaveMutation.isPending}
             />
           ) : (
             <BeachScene
               users={users}
-              onStartTimer={() => startTimerMutation.mutate()}
+              onStartTimer={handleStartTimer}
               isStarting={startTimerMutation.isPending}
               timerComplete={timeRemaining === 0}
             />
           )}
 
-          {startTimerMutation.isError && (
+          {startTimerMutation.isError ? (
             <div style={pageStyles.error}>
               Error starting timer: {(startTimerMutation.error as Error).message}
             </div>
-          )}
+          ) : null}
 
           <SessionHistory sessions={sessions} users={users} />
         </>
@@ -462,7 +473,7 @@ function Room() {
 
       <HotkeysModal
         isOpen={isHotkeysModalOpen}
-        onClose={() => setIsHotkeysModalOpen(false)}
+        onClose={closeHotkeysModal}
       />
     </div>
   );

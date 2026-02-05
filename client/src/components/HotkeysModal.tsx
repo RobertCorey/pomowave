@@ -1,3 +1,5 @@
+import { memo, useCallback } from 'react';
+
 type HotkeysModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -74,14 +76,14 @@ const styles = {
   },
 };
 
-function HotkeysModal({ isOpen, onClose }: HotkeysModalProps) {
-  if (!isOpen) return null;
-
-  const handleOverlayClick = (e: React.MouseEvent) => {
+const HotkeysModal = memo(function HotkeysModal({ isOpen, onClose }: HotkeysModalProps) {
+  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
-  };
+  }, [onClose]);
+
+  if (!isOpen) return null;
 
   return (
     <div style={styles.overlay} onClick={handleOverlayClick}>
@@ -103,6 +105,6 @@ function HotkeysModal({ isOpen, onClose }: HotkeysModalProps) {
       </div>
     </div>
   );
-}
+});
 
 export default HotkeysModal;

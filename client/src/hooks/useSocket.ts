@@ -45,6 +45,8 @@ interface UseSocketOptions {
  * Hook to manage Socket.io connection for real-time room updates.
  * This allows the app to receive notifications even when the tab is backgrounded,
  * since the socket connection persists (unlike polling which gets throttled).
+ *
+ * Uses refs to keep callback references current without causing socket reconnection.
  */
 export function useSocket({
   roomId,
@@ -62,26 +64,14 @@ export function useSocket({
   const onUserJoinedRef = useRef(onUserJoined);
   const onUserJoinedWaveRef = useRef(onUserJoinedWave);
 
-  // Keep refs up to date without causing socket reconnection
-  useEffect(() => {
-    currentUserIdRef.current = currentUserId;
-  }, [currentUserId]);
-
-  useEffect(() => {
-    onWaveStartedRef.current = onWaveStarted;
-  }, [onWaveStarted]);
-
-  useEffect(() => {
-    onTimerCompleteRef.current = onTimerComplete;
-  }, [onTimerComplete]);
-
-  useEffect(() => {
-    onUserJoinedRef.current = onUserJoined;
-  }, [onUserJoined]);
-
-  useEffect(() => {
-    onUserJoinedWaveRef.current = onUserJoinedWave;
-  }, [onUserJoinedWave]);
+  // Keep refs up to date via direct assignment instead of separate effects.
+  // Refs are updated synchronously during render, which is safe and avoids
+  // extra effect overhead (rerender-move-effect-to-event).
+  currentUserIdRef.current = currentUserId;
+  onWaveStartedRef.current = onWaveStarted;
+  onTimerCompleteRef.current = onTimerComplete;
+  onUserJoinedRef.current = onUserJoined;
+  onUserJoinedWaveRef.current = onUserJoinedWave;
 
   // Handle wave started event
   const handleWaveStarted = useCallback((event: WaveStartedEvent) => {

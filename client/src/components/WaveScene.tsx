@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import Avatar from './Avatar';
 
 type User = {
@@ -167,7 +168,25 @@ const styles = {
   },
 };
 
-function WaveScene({
+/** Pure function hoisted outside component to avoid re-creation on every render */
+function formatTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+/** Static keyframes hoisted outside component to avoid re-creation on every render */
+const bobKeyframes = (
+  <style>{`
+    @keyframes bob {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+  `}</style>
+);
+
+const WaveScene = memo(function WaveScene({
   users,
   participantIds,
   timeRemaining,
@@ -178,22 +197,16 @@ function WaveScene({
   onJoinWave,
   isJoiningWave
 }: WaveSceneProps) {
-  const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   // Separate users into surfers (participants), those who can join, and beach-goers
-  const surfers = users.filter(u => participantIds.includes(u.id));
-  // Current user who can join the wave (shown separately with join button)
-  const currentUserCanJoin = canJoinWave ? users.find(u => u.id === currentUserId) : null;
-  // Beach-goers: not participating AND (not current user who can join OR deadline passed)
-  const beachGoers = users.filter(u =>
-    !participantIds.includes(u.id) &&
-    !(canJoinWave && u.id === currentUserId)
-  );
+  const { surfers, currentUserCanJoin, beachGoers } = useMemo(() => {
+    const surfers = users.filter(u => participantIds.includes(u.id));
+    const currentUserCanJoin = canJoinWave ? users.find(u => u.id === currentUserId) ?? null : null;
+    const beachGoers = users.filter(u =>
+      !participantIds.includes(u.id) &&
+      !(canJoinWave && u.id === currentUserId)
+    );
+    return { surfers, currentUserCanJoin, beachGoers };
+  }, [users, participantIds, canJoinWave, currentUserId]);
 
   return (
     <div style={styles.container}>
@@ -230,7 +243,7 @@ function WaveScene({
       </div>
 
       {/* Join wave section for current user who can still join */}
-      {currentUserCanJoin && (
+      {currentUserCanJoin ? (
         <div style={styles.joinWaveSection}>
           <div style={styles.joinWaveLabel}>
             <Avatar nickname={currentUserCanJoin.nickname} emoji={currentUserCanJoin.emoji} size="small" />
@@ -245,16 +258,16 @@ function WaveScene({
           >
             {isJoiningWave ? 'Joining...' : '🏄 Join Wave!'}
           </button>
-          {joinDeadlineRemaining !== null && joinDeadlineRemaining > 0 && (
+          {joinDeadlineRemaining !== null && joinDeadlineRemaining > 0 ? (
             <div style={styles.joinDeadlineText}>
               {Math.ceil(joinDeadlineRemaining / 1000)}s left to join
             </div>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
 
       {/* Beach section for late joiners */}
-      {beachGoers.length > 0 && (
+      {beachGoers.length > 0 ? (
         <div style={styles.beachSection}>
           <div style={styles.beachLabel}>⏳ Waiting for next wave</div>
           <div style={styles.beachGoers}>
@@ -266,16 +279,11 @@ function WaveScene({
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
-      <style>{`
-        @keyframes bob {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-8px); }
-        }
-      `}</style>
+      {bobKeyframes}
     </div>
   );
-}
+});
 
 export default WaveScene;

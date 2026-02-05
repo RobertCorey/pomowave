@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 type AvatarProps = {
   nickname: string;
   emoji: string;
@@ -30,7 +32,7 @@ const styles = {
   },
 };
 
-function Avatar({ nickname, emoji, size = 'medium' }: AvatarProps) {
+const Avatar = memo(function Avatar({ nickname, emoji, size = 'medium' }: AvatarProps) {
   const emojiStyle = size === 'small'
     ? { ...styles.emojiContainer, ...styles.emojiContainerSmall }
     : styles.emojiContainer;
@@ -41,6 +43,6 @@ function Avatar({ nickname, emoji, size = 'medium' }: AvatarProps) {
       <div style={styles.name}>{nickname}</div>
     </div>
   );
-}
+});
 
 export default Avatar;

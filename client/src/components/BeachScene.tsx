@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import Avatar from './Avatar';
 
 type User = {
@@ -105,7 +106,7 @@ const styles = {
   },
 };
 
-function BeachScene({ users, onStartTimer, isStarting, timerComplete }: BeachSceneProps) {
+const BeachScene = memo(function BeachScene({ users, onStartTimer, isStarting, timerComplete }: BeachSceneProps) {
   return (
     <div style={styles.container}>
       <div style={styles.sun}>☀️</div>
@@ -125,9 +126,9 @@ function BeachScene({ users, onStartTimer, isStarting, timerComplete }: BeachSce
       </div>
 
       <div style={styles.buttonContainer}>
-        {timerComplete && (
+        {timerComplete ? (
           <div style={styles.completeMessage}>Pomo complete! Nice work! 🎉</div>
-        )}
+        ) : null}
         <button
           style={{
             ...styles.startButton,
@@ -141,6 +142,6 @@ function BeachScene({ users, onStartTimer, isStarting, timerComplete }: BeachSce
       </div>
     </div>
   );
-}
+});
 
 export default BeachScene;
