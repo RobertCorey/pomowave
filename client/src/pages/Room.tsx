@@ -203,8 +203,9 @@ function Room() {
   // Copy room URL to clipboard
   const copyRoomLink = () => {
     const roomUrl = window.location.href;
+    const message = `Come do pomos with me!\n${roomUrl}`;
     navigator.clipboard
-      .writeText(roomUrl)
+      .writeText(message)
       .then(() => alert("Room link copied to clipboard!"))
       .catch((err) => console.error("Could not copy room link:", err));
   };
