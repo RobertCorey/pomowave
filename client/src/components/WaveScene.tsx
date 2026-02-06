@@ -17,6 +17,9 @@ type WaveSceneProps = {
   joinDeadlineRemaining: number | null;
   onJoinWave: () => void;
   isJoiningWave: boolean;
+  workDeclarations: Record<string, string>;
+  workDeclaration: string;
+  onWorkDeclarationChange: (value: string) => void;
 };
 
 const styles = {
@@ -165,6 +168,30 @@ const styles = {
     color: 'rgba(255,255,255,0.8)',
     marginTop: '6px',
   },
+  workLabel: {
+    fontSize: '0.625rem',
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: '2px',
+    maxWidth: '80px',
+    textAlign: 'center' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  workInput: {
+    padding: '8px 12px',
+    borderRadius: '8px',
+    border: '2px solid rgba(255,255,255,0.4)',
+    background: 'rgba(255,255,255,0.15)',
+    fontSize: '0.8rem',
+    outline: 'none',
+    textAlign: 'center' as const,
+    width: '100%',
+    maxWidth: '240px',
+    color: 'white',
+    boxSizing: 'border-box' as const,
+    marginBottom: '8px',
+  },
 };
 
 function WaveScene({
@@ -176,7 +203,10 @@ function WaveScene({
   canJoinWave,
   joinDeadlineRemaining,
   onJoinWave,
-  isJoiningWave
+  isJoiningWave,
+  workDeclarations,
+  workDeclaration,
+  onWorkDeclarationChange,
 }: WaveSceneProps) {
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -224,6 +254,11 @@ function WaveScene({
                 <Avatar nickname={user.nickname} emoji={user.emoji} />
               </div>
               <div style={styles.surfboard}></div>
+              {workDeclarations[user.id] && (
+                <div style={styles.workLabel} title={workDeclarations[user.id]}>
+                  {workDeclarations[user.id]}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -235,6 +270,14 @@ function WaveScene({
           <div style={styles.joinWaveLabel}>
             <Avatar nickname={currentUserCanJoin.nickname} emoji={currentUserCanJoin.emoji} size="small" />
           </div>
+          <input
+            type="text"
+            placeholder="Working on... (optional)"
+            value={workDeclaration}
+            onChange={(e) => onWorkDeclarationChange(e.target.value)}
+            style={styles.workInput}
+            maxLength={100}
+          />
           <button
             style={{
               ...styles.joinWaveButton,

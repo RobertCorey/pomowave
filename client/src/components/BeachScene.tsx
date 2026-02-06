@@ -12,6 +12,8 @@ type BeachSceneProps = {
   onStartTimer: () => void;
   isStarting: boolean;
   timerComplete?: boolean;
+  workDeclaration: string;
+  onWorkDeclarationChange: (value: string) => void;
 };
 
 const styles = {
@@ -103,9 +105,27 @@ const styles = {
     height: '20px',
     background: 'linear-gradient(180deg, rgba(59, 130, 246, 0.3) 0%, transparent 100%)',
   },
+  workInput: {
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '2px solid rgba(255,255,255,0.5)',
+    background: 'rgba(255,255,255,0.7)',
+    fontSize: '0.875rem',
+    outline: 'none',
+    textAlign: 'center' as const,
+    width: '100%',
+    maxWidth: '280px',
+    color: '#1e3a5f',
+    boxSizing: 'border-box' as const,
+  },
+  workInputContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    paddingBottom: '8px',
+  },
 };
 
-function BeachScene({ users, onStartTimer, isStarting, timerComplete }: BeachSceneProps) {
+function BeachScene({ users, onStartTimer, isStarting, timerComplete, workDeclaration, onWorkDeclarationChange }: BeachSceneProps) {
   return (
     <div style={styles.container}>
       <div style={styles.sun}>☀️</div>
@@ -122,6 +142,17 @@ function BeachScene({ users, onStartTimer, isStarting, timerComplete }: BeachSce
             <div style={styles.towel}></div>
           </div>
         ))}
+      </div>
+
+      <div style={styles.workInputContainer}>
+        <input
+          type="text"
+          placeholder="What are you working on? (optional)"
+          value={workDeclaration}
+          onChange={(e) => onWorkDeclarationChange(e.target.value)}
+          style={styles.workInput}
+          maxLength={100}
+        />
       </div>
 
       <div style={styles.buttonContainer}>

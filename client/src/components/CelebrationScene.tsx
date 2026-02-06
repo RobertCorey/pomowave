@@ -25,6 +25,7 @@ type CelebrationSceneProps = {
   floatingEmojis: FloatingEmoji[];
   isParticipant: boolean;
   onDismiss: () => void;
+  workDeclarations?: Record<string, string>;
 };
 
 const REACTION_EMOJIS = ['🎉', '🔥', '💪', '🌊', '🏄', '⭐'];
@@ -143,6 +144,16 @@ const styles = {
     fontSize: '1rem',
     zIndex: 1,
   },
+  workLabel: {
+    fontSize: '0.625rem',
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: '2px',
+    maxWidth: '80px',
+    textAlign: 'center' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
 };
 
 function CelebrationScene({
@@ -155,6 +166,7 @@ function CelebrationScene({
   floatingEmojis,
   isParticipant,
   onDismiss,
+  workDeclarations = {},
 }: CelebrationSceneProps) {
   const [progress, setProgress] = useState(0);
 
@@ -217,6 +229,11 @@ function CelebrationScene({
               <Avatar nickname={user.nickname} emoji={user.emoji} />
             </div>
             <div style={styles.surfboard}></div>
+            {workDeclarations[user.id] && (
+              <div style={styles.workLabel} title={workDeclarations[user.id]}>
+                {workDeclarations[user.id]}
+              </div>
+            )}
           </div>
         ))}
       </div>
