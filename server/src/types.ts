@@ -19,6 +19,7 @@ export type PomoSession = {
   participants: string[]; // User IDs who joined the wave
   durationMinutes: number;
   joinDeadline: number; // Unix timestamp (ms) - deadline for joining the wave (60s after start)
+  workDeclarations?: Record<string, string>; // userId -> what they're working on (optional)
 };
 
 export type Room = {

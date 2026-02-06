@@ -45,13 +45,13 @@ export const joinRoom = async (roomCode: string, nickname: string) => {
 };
 
 // API function to start a timer in a room
-export const startTimer = async (roomCode: string, userId: string, durationMinutes: number = 25) => {
+export const startTimer = async (roomCode: string, userId: string, durationMinutes: number = 25, workDeclaration?: string) => {
   const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}/timer`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ userId, durationMinutes }),
+    body: JSON.stringify({ userId, durationMinutes, workDeclaration: workDeclaration || undefined }),
   });
   if (!response.ok) {
     throw new Error(`HTTP error: ${response.status}`);
@@ -60,13 +60,13 @@ export const startTimer = async (roomCode: string, userId: string, durationMinut
 };
 
 // API function to join an active wave
-export const joinWave = async (roomCode: string, userId: string) => {
+export const joinWave = async (roomCode: string, userId: string, workDeclaration?: string) => {
   const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}/wave/join`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ userId, workDeclaration: workDeclaration || undefined }),
   });
   if (!response.ok) {
     throw new Error(`HTTP error: ${response.status}`);

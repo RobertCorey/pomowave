@@ -331,7 +331,7 @@ async function main() {
   app.post("/api/rooms/:roomId/timer", async (req, res) => {
     try {
       const { roomId } = req.params;
-      const { userId, durationMinutes = 25 } = req.body;
+      const { userId, durationMinutes = 25, workDeclaration } = req.body;
 
       if (!userId || typeof userId !== "string") {
         res.status(400).json({ error: "User ID is required" });
@@ -369,6 +369,11 @@ async function main() {
       // Create a new pomo session - only the starter is a participant initially
       // Other users have 60 seconds to join the wave
       const JOIN_WINDOW_SECONDS = 60;
+      const workDeclarations: Record<string, string> = {};
+      if (workDeclaration && typeof workDeclaration === 'string' && workDeclaration.trim()) {
+        workDeclarations[userId] = workDeclaration.trim();
+      }
+
       const session: PomoSession = {
         id: Math.random().toString(36).substring(2, 15),
         startedAt: now,
@@ -376,6 +381,7 @@ async function main() {
         participants: [userId], // Only the starter joins automatically
         durationMinutes,
         joinDeadline: now + JOIN_WINDOW_SECONDS * 1000,
+        workDeclarations,
       };
 
       // Initialize sessions array if it doesn't exist (for backwards compatibility)
@@ -393,6 +399,7 @@ async function main() {
         starterName: userInRoom.nickname,
         endsAt: room.timer.endsAt,
         joinDeadline: session.joinDeadline,
+        workDeclaration: workDeclarations[userId] || null,
       });
 
       // Schedule server-side timer completion
@@ -410,7 +417,7 @@ async function main() {
   app.post("/api/rooms/:roomId/wave/join", async (req, res) => {
     try {
       const { roomId } = req.params;
-      const { userId } = req.body;
+      const { userId, workDeclaration } = req.body;
 
       if (!userId || typeof userId !== "string") {
         res.status(400).json({ error: "User ID is required" });
@@ -460,6 +467,15 @@ async function main() {
 
       // Add user to participants
       currentSession.participants.push(userId);
+
+      // Store work declaration if provided
+      if (workDeclaration && typeof workDeclaration === 'string' && workDeclaration.trim()) {
+        if (!currentSession.workDeclarations) {
+          currentSession.workDeclarations = {};
+        }
+        currentSession.workDeclarations[userId] = workDeclaration.trim();
+      }
+
       await db.rooms.update(room);
 
       // Emit user-joined-wave event to all clients in the room
@@ -468,6 +484,7 @@ async function main() {
         userId,
         nickname: userInRoom.nickname,
         emoji: userInRoom.emoji,
+        workDeclaration: workDeclaration?.trim() || null,
       });
 
       res.json({ room });

@@ -27,6 +27,7 @@ type PomoSession = {
   participants: string[];
   durationMinutes: number;
   joinDeadline?: number;
+  workDeclarations?: Record<string, string>;
 };
 
 let floatingEmojiId = 0;
@@ -40,7 +41,9 @@ function Room() {
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [celebrationParticipantIds, setCelebrationParticipantIds] = useState<string[]>([]);
   const [celebrationDurationMinutes, setCelebrationDurationMinutes] = useState(25);
+  const [celebrationWorkDeclarations, setCelebrationWorkDeclarations] = useState<Record<string, string>>({});
   const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
+  const [workDeclaration, setWorkDeclaration] = useState("");
   const queryClient = useQueryClient();
   // Track which session we've already notified completion for (to prevent double notifications)
   const completedSessionIdRef = useRef<string | null>(null);
@@ -100,6 +103,7 @@ function Room() {
     if (completedSession) {
       setCelebrationParticipantIds(completedSession.participants || []);
       setCelebrationDurationMinutes(completedSession.durationMinutes || 25);
+      setCelebrationWorkDeclarations(completedSession.workDeclarations || {});
     }
     setFloatingEmojis([]);
     setIsCelebrating(true);
@@ -212,7 +216,7 @@ function Room() {
 
   // Mutation to start a timer
   const startTimerMutation = useMutation({
-    mutationFn: () => startTimer(roomCode!, currentUserId!, 25),
+    mutationFn: () => startTimer(roomCode!, currentUserId!, 25, workDeclaration.trim() || undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", roomCode] });
       notifyTimerStart();
@@ -223,7 +227,7 @@ function Room() {
 
   // Mutation to join an active wave
   const joinWaveMutation = useMutation({
-    mutationFn: () => joinWave(roomCode!, currentUserId!),
+    mutationFn: () => joinWave(roomCode!, currentUserId!, workDeclaration.trim() || undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", roomCode] });
     },
@@ -281,6 +285,13 @@ function Room() {
     if (!isTimerActive || sessions.length === 0) return [];
     const currentSession = sessions[sessions.length - 1];
     return currentSession?.participants || [];
+  }, [isTimerActive, sessions]);
+
+  // Get the current active session's work declarations
+  const activeSessionWorkDeclarations = useMemo(() => {
+    if (!isTimerActive || sessions.length === 0) return {};
+    const currentSession = sessions[sessions.length - 1];
+    return currentSession?.workDeclarations || {};
   }, [isTimerActive, sessions]);
 
   // Check if current user can join the wave (not already a participant and deadline hasn't passed)
@@ -496,6 +507,9 @@ function Room() {
               joinDeadlineRemaining={joinDeadlineRemaining}
               onJoinWave={() => joinWaveMutation.mutate()}
               isJoiningWave={joinWaveMutation.isPending}
+              workDeclarations={activeSessionWorkDeclarations}
+              workDeclaration={workDeclaration}
+              onWorkDeclarationChange={setWorkDeclaration}
             />
           ) : isCelebrating ? (
             <CelebrationScene
@@ -508,6 +522,7 @@ function Room() {
               floatingEmojis={floatingEmojis}
               isParticipant={isParticipantInCelebration}
               onDismiss={handleDismissCelebration}
+              workDeclarations={celebrationWorkDeclarations}
             />
           ) : (
             <BeachScene
@@ -515,6 +530,8 @@ function Room() {
               onStartTimer={() => startTimerMutation.mutate()}
               isStarting={startTimerMutation.isPending}
               timerComplete={timeRemaining === 0}
+              workDeclaration={workDeclaration}
+              onWorkDeclarationChange={setWorkDeclaration}
             />
           )}
 
@@ -524,7 +541,7 @@ function Room() {
             </div>
           )}
 
-          <SessionHistory sessions={sessions} users={users} />
+          <SessionHistory sessions={sessions} users={users} showWorkDeclarations />
         </>
       )}
 

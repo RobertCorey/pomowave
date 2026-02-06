@@ -11,11 +11,13 @@ type PomoSession = {
   startedBy: string;
   participants: string[];
   durationMinutes: number;
+  workDeclarations?: Record<string, string>;
 };
 
 type SessionHistoryProps = {
   sessions: PomoSession[];
   users: User[];
+  showWorkDeclarations?: boolean;
 };
 
 const styles = {
@@ -92,9 +94,15 @@ const styles = {
     fontSize: '0.875rem',
     color: '#0ea5e9',
   },
+  workText: {
+    fontSize: '0.625rem',
+    color: '#64748b',
+    marginLeft: '2px',
+    fontStyle: 'italic' as const,
+  },
 };
 
-function SessionHistory({ sessions, users }: SessionHistoryProps) {
+function SessionHistory({ sessions, users, showWorkDeclarations }: SessionHistoryProps) {
   const getUserById = (id: string) => users.find(u => u.id === id);
 
   const formatSessionTime = (timestamp: number) => {
@@ -139,6 +147,7 @@ function SessionHistory({ sessions, users }: SessionHistoryProps) {
                   {session.participants.map((participantId) => {
                     const user = getUserById(participantId);
                     const isStarter = participantId === session.startedBy;
+                    const work = showWorkDeclarations && session.workDeclarations?.[participantId];
                     return (
                       <div key={participantId} style={styles.participant}>
                         <span style={styles.participantEmoji}>
@@ -146,6 +155,7 @@ function SessionHistory({ sessions, users }: SessionHistoryProps) {
                         </span>
                         <span>{user?.nickname || 'Unknown'}</span>
                         {isStarter && <span style={styles.starterBadge}>⭐</span>}
+                        {work && <span style={styles.workText}>- {work}</span>}
                       </div>
                     );
                   })}
