@@ -31,6 +31,12 @@ interface UserJoinedWaveEvent {
   emoji: string;
 }
 
+export interface WaveReactionEvent {
+  userId: string;
+  emoji: string;
+  nickname: string;
+}
+
 interface UseSocketOptions {
   roomId: string | undefined;
   currentUserId: string | null;
@@ -39,6 +45,11 @@ interface UseSocketOptions {
   onTimerComplete?: (event: TimerCompleteEvent) => void;
   onUserJoined?: (event: UserJoinedEvent) => void;
   onUserJoinedWave?: (event: UserJoinedWaveEvent) => void;
+  onWaveReaction?: (event: WaveReactionEvent) => void;
+}
+
+interface UseSocketReturn {
+  sendReaction: (emoji: string, nickname: string) => void;
 }
 
 /**
@@ -54,13 +65,15 @@ export function useSocket({
   onTimerComplete,
   onUserJoined,
   onUserJoinedWave,
-}: UseSocketOptions): void {
+  onWaveReaction,
+}: UseSocketOptions): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null);
   const currentUserIdRef = useRef(currentUserId);
   const onWaveStartedRef = useRef(onWaveStarted);
   const onTimerCompleteRef = useRef(onTimerComplete);
   const onUserJoinedRef = useRef(onUserJoined);
   const onUserJoinedWaveRef = useRef(onUserJoinedWave);
+  const onWaveReactionRef = useRef(onWaveReaction);
 
   // Keep refs up to date without causing socket reconnection
   useEffect(() => {
@@ -82,6 +95,10 @@ export function useSocket({
   useEffect(() => {
     onUserJoinedWaveRef.current = onUserJoinedWave;
   }, [onUserJoinedWave]);
+
+  useEffect(() => {
+    onWaveReactionRef.current = onWaveReaction;
+  }, [onWaveReaction]);
 
   // Handle wave started event
   const handleWaveStarted = useCallback((event: WaveStartedEvent) => {
@@ -110,6 +127,23 @@ export function useSocket({
     onUserJoinedWaveRef.current?.(event);
   }, []);
 
+  // Handle wave reaction event
+  const handleWaveReaction = useCallback((event: WaveReactionEvent) => {
+    onWaveReactionRef.current?.(event);
+  }, []);
+
+  // Send an emoji reaction to the room
+  const sendReaction = useCallback((emoji: string, nickname: string) => {
+    if (socketRef.current && roomId && currentUserIdRef.current) {
+      socketRef.current.emit('send-reaction', {
+        roomId,
+        userId: currentUserIdRef.current,
+        emoji,
+        nickname,
+      });
+    }
+  }, [roomId]);
+
   useEffect(() => {
     if (!enabled || !roomId) {
       return;
@@ -131,6 +165,7 @@ export function useSocket({
     socket.on('timer-complete', handleTimerComplete);
     socket.on('user-joined', handleUserJoined);
     socket.on('user-joined-wave', handleUserJoinedWave);
+    socket.on('wave-reaction', handleWaveReaction);
 
     socket.on('disconnect', () => {
       console.log('Socket disconnected');
@@ -147,7 +182,9 @@ export function useSocket({
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [enabled, roomId, handleWaveStarted, handleTimerComplete, handleUserJoined, handleUserJoinedWave]);
+  }, [enabled, roomId, handleWaveStarted, handleTimerComplete, handleUserJoined, handleUserJoinedWave, handleWaveReaction]);
+
+  return { sendReaction };
 }
 
 export default useSocket;

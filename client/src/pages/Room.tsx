@@ -4,11 +4,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchRoom, joinRoom, startTimer, joinWave } from '../api';
 import BeachScene from '../components/BeachScene';
 import WaveScene from '../components/WaveScene';
+import CelebrationScene from '../components/CelebrationScene';
+import type { FloatingEmoji } from '../components/CelebrationScene';
 import SessionHistory from '../components/SessionHistory';
 import HotkeysModal from '../components/HotkeysModal';
 import { notifyTimerStart, notifyTimerComplete, notifyWaveStarted, requestNotificationPermission } from '../services/notifications';
 import { useBackgroundTimer } from '../hooks/useBackgroundTimer';
 import { useSocket } from '../hooks/useSocket';
+import type { WaveReactionEvent } from '../hooks/useSocket';
 
 type User = {
   id: string;
@@ -26,12 +29,18 @@ type PomoSession = {
   joinDeadline?: number;
 };
 
+let floatingEmojiId = 0;
+
 function Room() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const [nickname, setNickname] = useState("");
   const [userJoined, setUserJoined] = useState(false);
   const [joinDeadlineRemaining, setJoinDeadlineRemaining] = useState<number | null>(null);
   const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState(false);
+  const [isCelebrating, setIsCelebrating] = useState(false);
+  const [celebrationParticipantIds, setCelebrationParticipantIds] = useState<string[]>([]);
+  const [celebrationDurationMinutes, setCelebrationDurationMinutes] = useState(25);
+  const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
   const queryClient = useQueryClient();
   // Track which session we've already notified completion for (to prevent double notifications)
   const completedSessionIdRef = useRef<string | null>(null);
@@ -84,7 +93,17 @@ function Room() {
     completedSessionIdRef.current = effectiveSessionId;
     notifyTimerComplete();
     queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
-  }, [currentSessionId, queryClient, roomCode]);
+
+    // Capture session data for the celebration screen before room data refreshes
+    const sessions: PomoSession[] = roomData?.room?.sessions || [];
+    const completedSession = sessions[sessions.length - 1];
+    if (completedSession) {
+      setCelebrationParticipantIds(completedSession.participants || []);
+      setCelebrationDurationMinutes(completedSession.durationMinutes || 25);
+    }
+    setFloatingEmojis([]);
+    setIsCelebrating(true);
+  }, [currentSessionId, queryClient, roomCode, roomData?.room?.sessions]);
 
   // Use background-aware timer hook for reliable timing even when tab is suspended
   // This is a fallback in case the socket connection drops
@@ -93,9 +112,25 @@ function Room() {
     onComplete: useCallback(() => handleTimerComplete(), [handleTimerComplete]),
   });
 
+  // Handle incoming wave reaction - add floating emoji
+  const handleWaveReaction = useCallback((event: WaveReactionEvent) => {
+    if (!isCelebrating) return;
+    const newEmoji: FloatingEmoji = {
+      id: floatingEmojiId++,
+      emoji: event.emoji,
+      left: 10 + Math.random() * 80,
+      animationDuration: 1.5 + Math.random() * 1,
+    };
+    setFloatingEmojis(prev => [...prev, newEmoji]);
+    // Auto-clean after animation completes
+    setTimeout(() => {
+      setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
+    }, 2500);
+  }, [isCelebrating]);
+
   // Use Socket.io for real-time notifications (works even when tab is backgrounded)
   // Server sends timer-complete at exact completion time - this is the primary notification method
-  useSocket({
+  const { sendReaction } = useSocket({
     roomId: roomCode,
     currentUserId,
     enabled: userJoined,
@@ -104,6 +139,8 @@ function Room() {
       notifyWaveStarted(event.starterName);
       // Refetch room data to update the UI
       queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
+      // Dismiss celebration if a new wave starts
+      setIsCelebrating(false);
     }, [queryClient, roomCode]),
     onTimerComplete: useCallback((event: { sessionId: string }) => {
       handleTimerComplete(event.sessionId);
@@ -116,7 +153,15 @@ function Room() {
       // Refetch room data to update the wave participants
       queryClient.invalidateQueries({ queryKey: ['room', roomCode] });
     }, [queryClient, roomCode]),
+    onWaveReaction: handleWaveReaction,
   });
+
+  // Handle reaction click from CelebrationScene
+  const handleReactionClick = useCallback((emoji: string) => {
+    const user = (roomData?.room?.users || []).find((u: User) => u.id === currentUserId);
+    if (!user) return;
+    sendReaction(emoji, user.nickname);
+  }, [currentUserId, roomData?.room?.users, sendReaction]);
 
   // Request notification permission when user joins
   useEffect(() => {
@@ -171,6 +216,8 @@ function Room() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", roomCode] });
       notifyTimerStart();
+      // Dismiss celebration when starting a new timer
+      setIsCelebrating(false);
     },
   });
 
@@ -243,6 +290,15 @@ function Room() {
     const deadlineNotPassed = joinDeadlineRemaining !== null && joinDeadlineRemaining > 0;
     return !isParticipant && deadlineNotPassed;
   }, [isTimerActive, currentUserId, activeSessionParticipants, joinDeadlineRemaining]);
+
+  // Check if current user was a participant in the celebration
+  const isParticipantInCelebration = currentUserId ? celebrationParticipantIds.includes(currentUserId) : false;
+
+  // Dismiss celebration and go to beach
+  const handleDismissCelebration = useCallback(() => {
+    setIsCelebrating(false);
+    setFloatingEmojis([]);
+  }, []);
 
   // Keyboard shortcuts handler
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -440,6 +496,18 @@ function Room() {
               joinDeadlineRemaining={joinDeadlineRemaining}
               onJoinWave={() => joinWaveMutation.mutate()}
               isJoiningWave={joinWaveMutation.isPending}
+            />
+          ) : isCelebrating ? (
+            <CelebrationScene
+              users={users}
+              participantIds={celebrationParticipantIds}
+              durationMinutes={celebrationDurationMinutes}
+              onStartTimer={() => startTimerMutation.mutate()}
+              isStarting={startTimerMutation.isPending}
+              onReactionClick={handleReactionClick}
+              floatingEmojis={floatingEmojis}
+              isParticipant={isParticipantInCelebration}
+              onDismiss={handleDismissCelebration}
             />
           ) : (
             <BeachScene

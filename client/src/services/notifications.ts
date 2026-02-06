@@ -243,10 +243,79 @@ export async function notifyTimerStart(): Promise<void> {
 }
 
 /**
+ * Play a celebratory sound - an uplifting ascending melody with shimmer
+ * More triumphant than the standard completion sound
+ */
+export function playCelebrationSound(): void {
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+
+    // Play an ascending celebratory arpeggio
+    const notes = [
+      { freq: 523.25, delay: 0, duration: 0.4 },      // C5
+      { freq: 659.25, delay: 0.1, duration: 0.4 },     // E5
+      { freq: 783.99, delay: 0.2, duration: 0.4 },     // G5
+      { freq: 1046.50, delay: 0.3, duration: 0.8 },    // C6
+      { freq: 1318.51, delay: 0.5, duration: 1.2 },    // E6 (triumphant top note)
+    ];
+
+    notes.forEach(({ freq, delay, duration }) => {
+      const oscillator = ctx.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(freq, now + delay);
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0, now + delay);
+      gainNode.gain.linearRampToValueAtTime(0.18, now + delay + 0.04);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, now + delay + duration);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start(now + delay);
+      oscillator.stop(now + delay + duration);
+    });
+
+    // Add a shimmer / sparkle layer
+    const shimmerDuration = 2;
+    const bufferSize = ctx.sampleRate * shimmerDuration;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = (Math.random() * 2 - 1) * 0.2;
+    }
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(3000, now);
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0, now);
+    noiseGain.gain.linearRampToValueAtTime(0.06, now + 0.3);
+    noiseGain.gain.linearRampToValueAtTime(0.06, now + 1.0);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + shimmerDuration);
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+
+    noise.start(now);
+    noise.stop(now + shimmerDuration);
+  } catch (error) {
+    console.warn('Could not play celebration sound:', error);
+  }
+}
+
+/**
  * Notify user that timer has completed (sound + browser notification)
  */
 export function notifyTimerComplete(): void {
-  playCompleteSound();
+  playCelebrationSound();
   showCompleteNotification();
 }
 

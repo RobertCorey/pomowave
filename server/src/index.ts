@@ -54,6 +54,15 @@ io.on('connection', (socket) => {
     console.log(`Client ${socket.id} left room ${roomId}`);
   });
 
+  // Broadcast emoji reaction to all clients in the room
+  socket.on('send-reaction', (data: { roomId: string; userId: string; emoji: string; nickname: string }) => {
+    io.to(data.roomId).emit('wave-reaction', {
+      userId: data.userId,
+      emoji: data.emoji,
+      nickname: data.nickname,
+    });
+  });
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });
