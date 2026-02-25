@@ -452,21 +452,30 @@ async function main() {
 
       const currentSession = room.sessions[room.sessions.length - 1];
 
-      // Check if user is already a participant
+      // Check if user is already a participant (full or partial)
       if (currentSession.participants.includes(userId)) {
         res.status(400).json({ error: "Already joined this wave" });
         return;
       }
-
-      // Check if join deadline has passed
-      const now = Date.now();
-      if (currentSession.joinDeadline && now > currentSession.joinDeadline) {
-        res.status(400).json({ error: "Join deadline has passed" });
+      if (currentSession.partialParticipants?.includes(userId)) {
+        res.status(400).json({ error: "Already joined this wave" });
         return;
       }
 
-      // Add user to participants
-      currentSession.participants.push(userId);
+      // Determine if this is a partial join (after deadline)
+      const now = Date.now();
+      const isPartialJoin = currentSession.joinDeadline ? now > currentSession.joinDeadline : false;
+
+      if (isPartialJoin) {
+        // Add user to partial participants (joined after deadline)
+        if (!currentSession.partialParticipants) {
+          currentSession.partialParticipants = [];
+        }
+        currentSession.partialParticipants.push(userId);
+      } else {
+        // Add user to full participants (joined during window)
+        currentSession.participants.push(userId);
+      }
 
       // Store work declaration if provided
       if (workDeclaration && typeof workDeclaration === 'string' && workDeclaration.trim()) {
@@ -485,6 +494,7 @@ async function main() {
         nickname: userInRoom.nickname,
         emoji: userInRoom.emoji,
         workDeclaration: workDeclaration?.trim() || null,
+        partial: isPartialJoin,
       });
 
       res.json({ room });

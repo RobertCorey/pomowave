@@ -10,6 +10,7 @@ type PomoSession = {
   startedAt: number;
   startedBy: string;
   participants: string[];
+  partialParticipants?: string[];
   durationMinutes: number;
   workDeclarations?: Record<string, string>;
 };
@@ -18,6 +19,7 @@ type SessionHistoryProps = {
   sessions: PomoSession[];
   users: User[];
   showWorkDeclarations?: boolean;
+  showPartialJoins?: boolean;
 };
 
 const styles = {
@@ -100,9 +102,14 @@ const styles = {
     marginLeft: '2px',
     fontStyle: 'italic' as const,
   },
+  partialBadge: {
+    fontSize: '0.625rem',
+    color: '#d97706',
+    marginLeft: '2px',
+  },
 };
 
-function SessionHistory({ sessions, users, showWorkDeclarations }: SessionHistoryProps) {
+function SessionHistory({ sessions, users, showWorkDeclarations, showPartialJoins }: SessionHistoryProps) {
   const getUserById = (id: string) => users.find(u => u.id === id);
 
   const formatSessionTime = (timestamp: number) => {
@@ -155,6 +162,20 @@ function SessionHistory({ sessions, users, showWorkDeclarations }: SessionHistor
                         </span>
                         <span>{user?.nickname || 'Unknown'}</span>
                         {isStarter && <span style={styles.starterBadge}>⭐</span>}
+                        {work && <span style={styles.workText}>- {work}</span>}
+                      </div>
+                    );
+                  })}
+                  {showPartialJoins && session.partialParticipants?.map((participantId) => {
+                    const user = getUserById(participantId);
+                    const work = showWorkDeclarations && session.workDeclarations?.[participantId];
+                    return (
+                      <div key={participantId} style={{ ...styles.participant, opacity: 0.8 }}>
+                        <span style={styles.participantEmoji}>
+                          {user?.emoji || '🐚'}
+                        </span>
+                        <span>{user?.nickname || 'Unknown'}</span>
+                        <span style={styles.partialBadge}>late</span>
                         {work && <span style={styles.workText}>- {work}</span>}
                       </div>
                     );

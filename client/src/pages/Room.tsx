@@ -25,6 +25,7 @@ type PomoSession = {
   startedAt: number;
   startedBy: string;
   participants: string[];
+  partialParticipants?: string[];
   durationMinutes: number;
   joinDeadline?: number;
   workDeclarations?: Record<string, string>;
@@ -40,6 +41,7 @@ function Room() {
   const [isHotkeysModalOpen, setIsHotkeysModalOpen] = useState(false);
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [celebrationParticipantIds, setCelebrationParticipantIds] = useState<string[]>([]);
+  const [celebrationPartialParticipantIds, setCelebrationPartialParticipantIds] = useState<string[]>([]);
   const [celebrationDurationMinutes, setCelebrationDurationMinutes] = useState(25);
   const [celebrationWorkDeclarations, setCelebrationWorkDeclarations] = useState<Record<string, string>>({});
   const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
@@ -102,6 +104,7 @@ function Room() {
     const completedSession = sessions[sessions.length - 1];
     if (completedSession) {
       setCelebrationParticipantIds(completedSession.participants || []);
+      setCelebrationPartialParticipantIds(completedSession.partialParticipants || []);
       setCelebrationDurationMinutes(completedSession.durationMinutes || 25);
       setCelebrationWorkDeclarations(completedSession.workDeclarations || {});
     }
@@ -287,6 +290,13 @@ function Room() {
     return currentSession?.participants || [];
   }, [isTimerActive, sessions]);
 
+  // Get the current active session's partial participants (joined after deadline)
+  const activeSessionPartialParticipants = useMemo(() => {
+    if (!isTimerActive || sessions.length === 0) return [];
+    const currentSession = sessions[sessions.length - 1];
+    return currentSession?.partialParticipants || [];
+  }, [isTimerActive, sessions]);
+
   // Get the current active session's work declarations
   const activeSessionWorkDeclarations = useMemo(() => {
     if (!isTimerActive || sessions.length === 0) return {};
@@ -294,16 +304,23 @@ function Room() {
     return currentSession?.workDeclarations || {};
   }, [isTimerActive, sessions]);
 
-  // Check if current user can join the wave (not already a participant and deadline hasn't passed)
+  // Check if current user can join the wave (not already a participant, either full or partial)
   const canJoinWave = useMemo(() => {
     if (!isTimerActive || !currentUserId) return false;
     const isParticipant = activeSessionParticipants.includes(currentUserId);
-    const deadlineNotPassed = joinDeadlineRemaining !== null && joinDeadlineRemaining > 0;
-    return !isParticipant && deadlineNotPassed;
-  }, [isTimerActive, currentUserId, activeSessionParticipants, joinDeadlineRemaining]);
+    const isPartialParticipant = activeSessionPartialParticipants.includes(currentUserId);
+    return !isParticipant && !isPartialParticipant;
+  }, [isTimerActive, currentUserId, activeSessionParticipants, activeSessionPartialParticipants]);
 
-  // Check if current user was a participant in the celebration
-  const isParticipantInCelebration = currentUserId ? celebrationParticipantIds.includes(currentUserId) : false;
+  // Whether a join right now would be a partial join (deadline has passed)
+  const wouldBePartialJoin = useMemo(() => {
+    return !(joinDeadlineRemaining !== null && joinDeadlineRemaining > 0);
+  }, [joinDeadlineRemaining]);
+
+  // Check if current user was a participant in the celebration (full or partial)
+  const isParticipantInCelebration = currentUserId
+    ? celebrationParticipantIds.includes(currentUserId) || celebrationPartialParticipantIds.includes(currentUserId)
+    : false;
 
   // Dismiss celebration and go to beach
   const handleDismissCelebration = useCallback(() => {
@@ -500,10 +517,12 @@ function Room() {
             <WaveScene
               users={users}
               participantIds={activeSessionParticipants}
+              partialParticipantIds={activeSessionPartialParticipants}
               timeRemaining={timeRemaining!}
               startedByName={timerStarterName || 'Someone'}
               currentUserId={currentUserId}
               canJoinWave={canJoinWave}
+              wouldBePartialJoin={wouldBePartialJoin}
               joinDeadlineRemaining={joinDeadlineRemaining}
               onJoinWave={() => joinWaveMutation.mutate()}
               isJoiningWave={joinWaveMutation.isPending}
@@ -515,6 +534,7 @@ function Room() {
             <CelebrationScene
               users={users}
               participantIds={celebrationParticipantIds}
+              partialParticipantIds={celebrationPartialParticipantIds}
               durationMinutes={celebrationDurationMinutes}
               onStartTimer={() => startTimerMutation.mutate()}
               isStarting={startTimerMutation.isPending}
@@ -541,7 +561,7 @@ function Room() {
             </div>
           )}
 
-          <SessionHistory sessions={sessions} users={users} showWorkDeclarations />
+          <SessionHistory sessions={sessions} users={users} showWorkDeclarations showPartialJoins />
         </>
       )}
 
