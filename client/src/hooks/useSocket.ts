@@ -29,6 +29,7 @@ interface UserJoinedWaveEvent {
   userId: string;
   nickname: string;
   emoji: string;
+  partial?: boolean;
 }
 
 export interface WaveReactionEvent {

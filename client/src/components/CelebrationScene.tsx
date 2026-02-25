@@ -18,6 +18,7 @@ export type FloatingEmoji = {
 type CelebrationSceneProps = {
   users: User[];
   participantIds: string[];
+  partialParticipantIds: string[];
   durationMinutes: number;
   onStartTimer: () => void;
   isStarting: boolean;
@@ -154,11 +155,26 @@ const styles = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
   },
+  paddleboard: {
+    width: '30px',
+    height: '6px',
+    background: 'linear-gradient(90deg, #94a3b8 0%, #64748b 100%)',
+    borderRadius: '6px',
+    marginTop: '2px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+  },
+  partialBadge: {
+    fontSize: '0.5rem',
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: '1px',
+    fontStyle: 'italic' as const,
+  },
 };
 
 function CelebrationScene({
   users,
   participantIds,
+  partialParticipantIds,
   durationMinutes,
   onStartTimer,
   isStarting,
@@ -171,6 +187,8 @@ function CelebrationScene({
   const [progress, setProgress] = useState(0);
 
   const participants = users.filter(u => participantIds.includes(u.id));
+  const partialParticipants = users.filter(u => partialParticipantIds.includes(u.id));
+  const totalSurfers = participants.length + partialParticipants.length;
 
   // Auto-dismiss progress timer
   useEffect(() => {
@@ -212,7 +230,7 @@ function CelebrationScene({
 
       <div style={styles.title}>Wave Caught! 🏄</div>
       <div style={styles.stats}>
-        {durationMinutes} min &middot; {participants.length} surfer{participants.length !== 1 ? 's' : ''}
+        {durationMinutes} min &middot; {totalSurfers} surfer{totalSurfers !== 1 ? 's' : ''}
       </div>
 
       {/* Participant lineup */}
@@ -229,6 +247,27 @@ function CelebrationScene({
               <Avatar nickname={user.nickname} emoji={user.emoji} />
             </div>
             <div style={styles.surfboard}></div>
+            {workDeclarations[user.id] && (
+              <div style={styles.workLabel} title={workDeclarations[user.id]}>
+                {workDeclarations[user.id]}
+              </div>
+            )}
+          </div>
+        ))}
+        {partialParticipants.map((user, index) => (
+          <div
+            key={user.id}
+            style={{
+              ...styles.surferWrapper,
+              animationDelay: `${(participants.length + index) * 0.1}s`,
+              opacity: 0.85,
+            }}
+          >
+            <div style={styles.avatarOnBoard}>
+              <Avatar nickname={user.nickname} emoji={user.emoji} />
+            </div>
+            <div style={styles.paddleboard}></div>
+            <div style={styles.partialBadge}>joined late</div>
             {workDeclarations[user.id] && (
               <div style={styles.workLabel} title={workDeclarations[user.id]}>
                 {workDeclarations[user.id]}

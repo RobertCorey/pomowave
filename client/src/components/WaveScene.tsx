@@ -10,10 +10,12 @@ type User = {
 type WaveSceneProps = {
   users: User[];
   participantIds: string[];
+  partialParticipantIds: string[];
   timeRemaining: number;
   startedByName: string;
   currentUserId: string | null;
   canJoinWave: boolean;
+  wouldBePartialJoin: boolean;
   joinDeadlineRemaining: number | null;
   onJoinWave: () => void;
   isJoiningWave: boolean;
@@ -192,15 +194,55 @@ const styles = {
     boxSizing: 'border-box' as const,
     marginBottom: '8px',
   },
+  paddleboard: {
+    width: '30px',
+    height: '6px',
+    background: 'linear-gradient(90deg, #94a3b8 0%, #64748b 100%)',
+    borderRadius: '6px',
+    marginTop: '2px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+  },
+  partialBadge: {
+    fontSize: '0.5rem',
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: '1px',
+    fontStyle: 'italic' as const,
+  },
+  joinLateSection: {
+    marginTop: '12px',
+    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+    borderRadius: '12px',
+    padding: '12px 16px',
+    textAlign: 'center' as const,
+  },
+  joinLateButton: {
+    background: 'white',
+    color: '#d97706',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '10px 20px',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+  },
+  joinLateLabel: {
+    fontSize: '0.75rem',
+    color: 'rgba(255,255,255,0.9)',
+    marginBottom: '8px',
+    fontWeight: 500,
+  },
 };
 
 function WaveScene({
   users,
   participantIds,
+  partialParticipantIds,
   timeRemaining,
   startedByName,
   currentUserId,
   canJoinWave,
+  wouldBePartialJoin,
   joinDeadlineRemaining,
   onJoinWave,
   isJoiningWave,
@@ -215,13 +257,15 @@ function WaveScene({
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Separate users into surfers (participants), those who can join, and beach-goers
+  // Separate users into surfers (full participants), partial surfers, those who can join, and beach-goers
   const surfers = users.filter(u => participantIds.includes(u.id));
+  const partialSurfers = users.filter(u => partialParticipantIds.includes(u.id));
   // Current user who can join the wave (shown separately with join button)
   const currentUserCanJoin = canJoinWave ? users.find(u => u.id === currentUserId) : null;
-  // Beach-goers: not participating AND (not current user who can join OR deadline passed)
+  // Beach-goers: not participating (full or partial) AND not the current user who can join
   const beachGoers = users.filter(u =>
     !participantIds.includes(u.id) &&
+    !partialParticipantIds.includes(u.id) &&
     !(canJoinWave && u.id === currentUserId)
   );
 
@@ -261,11 +305,32 @@ function WaveScene({
               )}
             </div>
           ))}
+          {partialSurfers.map((user, index) => (
+            <div
+              key={user.id}
+              style={{
+                ...styles.surferWrapper,
+                animationDelay: `${(surfers.length + index) * 0.3}s`,
+                opacity: 0.85,
+              }}
+            >
+              <div style={styles.avatarOnBoard}>
+                <Avatar nickname={user.nickname} emoji={user.emoji} />
+              </div>
+              <div style={styles.paddleboard}></div>
+              <div style={styles.partialBadge}>joined late</div>
+              {workDeclarations[user.id] && (
+                <div style={styles.workLabel} title={workDeclarations[user.id]}>
+                  {workDeclarations[user.id]}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Join wave section for current user who can still join */}
-      {currentUserCanJoin && (
+      {currentUserCanJoin && !wouldBePartialJoin && (
         <div style={styles.joinWaveSection}>
           <div style={styles.joinWaveLabel}>
             <Avatar nickname={currentUserCanJoin.nickname} emoji={currentUserCanJoin.emoji} size="small" />
@@ -293,6 +358,36 @@ function WaveScene({
               {Math.ceil(joinDeadlineRemaining / 1000)}s left to join
             </div>
           )}
+        </div>
+      )}
+
+      {/* Late join section for current user after deadline has passed */}
+      {currentUserCanJoin && wouldBePartialJoin && (
+        <div style={styles.joinLateSection}>
+          <div style={styles.joinLateLabel}>
+            <Avatar nickname={currentUserCanJoin.nickname} emoji={currentUserCanJoin.emoji} size="small" />
+          </div>
+          <input
+            type="text"
+            placeholder="Working on... (optional)"
+            value={workDeclaration}
+            onChange={(e) => onWorkDeclarationChange(e.target.value)}
+            style={styles.workInput}
+            maxLength={100}
+          />
+          <button
+            style={{
+              ...styles.joinLateButton,
+              opacity: isJoiningWave ? 0.7 : 1,
+            }}
+            onClick={onJoinWave}
+            disabled={isJoiningWave}
+          >
+            {isJoiningWave ? 'Joining...' : '🏄 Join Late'}
+          </button>
+          <div style={styles.joinDeadlineText}>
+            You&apos;ll be marked as a partial join
+          </div>
         </div>
       )}
 
