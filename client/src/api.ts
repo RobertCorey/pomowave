@@ -1,7 +1,23 @@
 // API base URL configuration
-const API_BASE_URL = import.meta.env.PROD 
-  ? 'https://pomowave.onrender.com/api' 
+const API_BASE_URL = import.meta.env.PROD
+  ? 'https://pomowave.onrender.com/api'
   : '/api';
+
+/**
+ * Build an Error from a failed response, preferring the server's
+ * { error: "..." } message over a generic HTTP status string.
+ */
+const errorFromResponse = async (response: Response): Promise<Error> => {
+  try {
+    const data = await response.json();
+    if (data && typeof data.error === 'string') {
+      return new Error(data.error);
+    }
+  } catch {
+    // Body wasn't JSON; fall through to the generic message
+  }
+  return new Error(`HTTP error: ${response.status}`);
+};
 
 // API function to create a room
 export const createRoom = async (nickname: string) => {
@@ -14,9 +30,9 @@ export const createRoom = async (nickname: string) => {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
+    throw await errorFromResponse(response);
   }
-  
+
   return response.json();
 };
 
@@ -24,7 +40,7 @@ export const createRoom = async (nickname: string) => {
 export const fetchRoom = async (roomCode: string) => {
   const response = await fetch(`${API_BASE_URL}/rooms/${roomCode}`);
   if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
+    throw await errorFromResponse(response);
   }
   return response.json();
 };
@@ -39,7 +55,7 @@ export const joinRoom = async (roomCode: string, nickname: string) => {
     body: JSON.stringify({ nickname }),
   });
   if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
+    throw await errorFromResponse(response);
   }
   return response.json();
 };
@@ -54,7 +70,7 @@ export const startTimer = async (roomCode: string, userId: string, durationMinut
     body: JSON.stringify({ userId, durationMinutes, workDeclaration: workDeclaration || undefined }),
   });
   if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
+    throw await errorFromResponse(response);
   }
   return response.json();
 };
@@ -69,7 +85,7 @@ export const joinWave = async (roomCode: string, userId: string, workDeclaration
     body: JSON.stringify({ userId, workDeclaration: workDeclaration || undefined }),
   });
   if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
+    throw await errorFromResponse(response);
   }
   return response.json();
 };
@@ -90,7 +106,7 @@ export const validateRooms = async (roomIds: string[]): Promise<{ roomDetails: R
     body: JSON.stringify({ roomIds }),
   });
   if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
+    throw await errorFromResponse(response);
   }
   return response.json();
 };

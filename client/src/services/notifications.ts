@@ -186,14 +186,28 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Show a browser notification for timer start
+ * Safely show a browser notification.
+ * The Notification constructor throws on some platforms (e.g. Chrome for
+ * Android, where page-created notifications aren't supported), so this must
+ * never be allowed to break the calling flow.
  */
-export function showStartNotification(): void {
+function showNotification(title: string, options: NotificationOptions): void {
   if (!('Notification' in window) || Notification.permission !== 'granted') {
     return;
   }
 
-  new Notification('Pomodoro Started! 🏄', {
+  try {
+    new Notification(title, options);
+  } catch (error) {
+    console.warn('Could not show notification:', error);
+  }
+}
+
+/**
+ * Show a browser notification for timer start
+ */
+export function showStartNotification(): void {
+  showNotification('Pomodoro Started! 🏄', {
     body: 'Time to ride the wave! Focus for 25 minutes.',
     icon: '🌊',
     tag: 'pomo-start',
@@ -205,11 +219,7 @@ export function showStartNotification(): void {
  * Show a browser notification when someone else starts a wave
  */
 export function showWaveStartedNotification(starterName: string): void {
-  if (!('Notification' in window) || Notification.permission !== 'granted') {
-    return;
-  }
-
-  new Notification(`${starterName} started a wave! 🌊`, {
+  showNotification(`${starterName} started a wave! 🌊`, {
     body: 'Join now to ride together!',
     icon: '🏄',
     tag: 'wave-started',
@@ -221,11 +231,7 @@ export function showWaveStartedNotification(starterName: string): void {
  * Show a browser notification for timer completion
  */
 export function showCompleteNotification(): void {
-  if (!('Notification' in window) || Notification.permission !== 'granted') {
-    return;
-  }
-
-  new Notification('Pomodoro Complete! 🎉', {
+  showNotification('Pomodoro Complete! 🎉', {
     body: 'Great work! Time for a break on the beach.',
     icon: '🏖️',
     tag: 'pomo-complete',

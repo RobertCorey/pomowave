@@ -225,6 +225,8 @@ function Room() {
       notifyTimerStart();
       // Dismiss celebration when starting a new timer
       setIsCelebrating(false);
+      // Clear the declaration so it doesn't carry over to the next wave
+      setWorkDeclaration("");
     },
   });
 
@@ -233,12 +235,14 @@ function Room() {
     mutationFn: () => joinWave(roomCode!, currentUserId!, workDeclaration.trim() || undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["room", roomCode] });
+      // Clear the declaration so it doesn't carry over to the next wave
+      setWorkDeclaration("");
     },
   });
 
   // Mutation to join a room
   const joinRoomMutation = useMutation({
-    mutationFn: () => joinRoom(roomCode!, nickname),
+    mutationFn: () => joinRoom(roomCode!, nickname.trim()),
     onSuccess: (data) => {
       // Save the user ID to localStorage for this room
       const roomUserMap = JSON.parse(
@@ -492,6 +496,7 @@ function Room() {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               style={pageStyles.input}
+              maxLength={30}
               required
             />
             <button
@@ -558,6 +563,12 @@ function Room() {
           {startTimerMutation.isError && (
             <div style={pageStyles.error}>
               Error starting timer: {(startTimerMutation.error as Error).message}
+            </div>
+          )}
+
+          {joinWaveMutation.isError && (
+            <div style={pageStyles.error}>
+              Error joining wave: {(joinWaveMutation.error as Error).message}
             </div>
           )}
 

@@ -214,7 +214,7 @@ function Home() {
   }, []);
 
   const createRoomMutation = useMutation({
-    mutationFn: () => createRoom(nickname),
+    mutationFn: () => createRoom(nickname.trim()),
     onSuccess: (data) => {
       const roomUserMap = JSON.parse(localStorage.getItem('roomUserMap') || '{}');
       roomUserMap[data.room.id] = data.userId;
@@ -255,6 +255,7 @@ function Home() {
               onChange={(e) => setNickname(e.target.value)}
               placeholder="Enter your nickname..."
               style={styles.input}
+              maxLength={30}
               required
             />
           </div>
