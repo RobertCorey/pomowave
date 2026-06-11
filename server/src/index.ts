@@ -15,6 +15,33 @@ const getRandomEmoji = (): string => {
   return ANIMAL_EMOJIS[Math.floor(Math.random() * ANIMAL_EMOJIS.length)];
 };
 
+// Input limits to keep stored payloads bounded
+const MAX_NICKNAME_LENGTH = 30;
+const MAX_WORK_DECLARATION_LENGTH = 100;
+const MAX_VALIDATE_ROOMS = 50;
+
+/**
+ * Validate and normalize a nickname from a request body.
+ * Returns null if the nickname is missing, not a string, or empty after trimming.
+ */
+const sanitizeNickname = (nickname: unknown): string | null => {
+  if (typeof nickname !== "string") return null;
+  const trimmed = nickname.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, MAX_NICKNAME_LENGTH);
+};
+
+/**
+ * Validate and normalize an optional work declaration from a request body.
+ * Returns null if missing, not a string, or empty after trimming.
+ */
+const sanitizeWorkDeclaration = (workDeclaration: unknown): string | null => {
+  if (typeof workDeclaration !== "string") return null;
+  const trimmed = workDeclaration.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, MAX_WORK_DECLARATION_LENGTH);
+};
+
 // Initialize Express
 const app = express();
 const httpServer = createServer(app);
@@ -91,6 +118,7 @@ function scheduleTimerCompletion(roomId: string, endsAt: number, sessionId: stri
   if (timeUntilEnd <= 0) {
     // Timer already ended, emit immediately
     io.to(roomId).emit('timer-complete', { sessionId });
+    clearRoomTimer(roomId);
     return;
   }
 
@@ -100,21 +128,26 @@ function scheduleTimerCompletion(roomId: string, endsAt: number, sessionId: stri
     console.log(`Timer completed for room ${roomId}`);
     io.to(roomId).emit('timer-complete', { sessionId });
     activeTimers.delete(roomId);
-
-    // Clear the timer from the room in the database
-    db.rooms.get(roomId).then((room) => {
-      if (room && room.timer) {
-        room.timer = undefined;
-        db.rooms.update(room).catch((err) => {
-          console.error('Error clearing timer from room:', err);
-        });
-      }
-    }).catch((err) => {
-      console.error('Error getting room to clear timer:', err);
-    });
+    clearRoomTimer(roomId);
   }, timeUntilEnd);
 
   activeTimers.set(roomId, timeout);
+}
+
+/**
+ * Remove the timer field from a room in the database after it has completed.
+ */
+function clearRoomTimer(roomId: string): void {
+  db.rooms.get(roomId).then((room) => {
+    if (room && room.timer) {
+      room.timer = undefined;
+      db.rooms.update(room).catch((err) => {
+        console.error('Error clearing timer from room:', err);
+      });
+    }
+  }).catch((err) => {
+    console.error('Error getting room to clear timer:', err);
+  });
 }
 
 // Helper function to generate a room code
@@ -164,6 +197,21 @@ const generateRoomCode = (): string => {
   return `${randomAnimal}-${randomColor}-${randomLocation}`;
 };
 
+/**
+ * Generate a room code that doesn't collide with an existing room.
+ * The word-based code space is small (1000 combos), so creating a room
+ * with a plain generateRoomCode() could silently overwrite an active room.
+ */
+const generateUniqueRoomCode = async (): Promise<string> => {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateRoomCode();
+    const existing = await db.rooms.get(code);
+    if (!existing) return code;
+  }
+  // Extremely unlikely fallback: add a random suffix to guarantee uniqueness
+  return `${generateRoomCode()}-${Math.random().toString(36).substring(2, 6)}`;
+};
+
 async function main() {
   // Initialize the database connection
   await db.init();
@@ -211,15 +259,15 @@ async function main() {
   // Route to create a new room
   app.post("/api/rooms", async (req, res) => {
     try {
-      const { nickname } = req.body;
+      const nickname = sanitizeNickname(req.body.nickname);
 
-      if (!nickname || typeof nickname !== "string") {
+      if (!nickname) {
         res.status(400).json({ error: "Nickname is required" });
         return;
       }
 
       const userId = Math.random().toString(36).substring(2, 15);
-      const roomId = generateRoomCode();
+      const roomId = await generateUniqueRoomCode();
 
       // Create a new room with the user as the host
       const newRoom: Room = {
@@ -267,10 +315,16 @@ async function main() {
         return;
       }
 
+      // Cap the number of lookups so a single request can't hammer Redis
+      const idsToCheck = roomIds
+        .filter((id): id is string => typeof id === "string")
+        .slice(0, MAX_VALIDATE_ROOMS);
+
       const roomDetails: Record<string, { users: { nickname: string; emoji: string }[]; wavesCompleted: number } | null> = {};
 
-      for (const roomId of roomIds) {
-        const room = await db.rooms.get(roomId);
+      const rooms = await Promise.all(idsToCheck.map((roomId) => db.rooms.get(roomId)));
+      idsToCheck.forEach((roomId, index) => {
+        const room = rooms[index];
         if (room) {
           roomDetails[roomId] = {
             users: room.users.map(u => ({ nickname: u.nickname, emoji: u.emoji })),
@@ -279,7 +333,7 @@ async function main() {
         } else {
           roomDetails[roomId] = null;
         }
-      }
+      });
 
       res.json({ roomDetails });
     } catch (error) {
@@ -292,9 +346,9 @@ async function main() {
   app.post("/api/rooms/:roomId/join", async (req, res) => {
     try {
       const { roomId } = req.params;
-      const { nickname } = req.body;
+      const nickname = sanitizeNickname(req.body.nickname);
 
-      if (!nickname || typeof nickname !== "string") {
+      if (!nickname) {
         res.status(400).json({ error: "Nickname is required" });
         return;
       }
@@ -331,7 +385,8 @@ async function main() {
   app.post("/api/rooms/:roomId/timer", async (req, res) => {
     try {
       const { roomId } = req.params;
-      const { userId, durationMinutes = 25, workDeclaration } = req.body;
+      const { userId, durationMinutes = 25 } = req.body;
+      const workDeclaration = sanitizeWorkDeclaration(req.body.workDeclaration);
 
       if (!userId || typeof userId !== "string") {
         res.status(400).json({ error: "User ID is required" });
@@ -357,6 +412,12 @@ async function main() {
         return;
       }
 
+      // Prevent overwriting an in-progress wave with a new one
+      if (room.timer && room.timer.endsAt > Date.now()) {
+        res.status(409).json({ error: "A wave is already in progress" });
+        return;
+      }
+
       const now = Date.now();
 
       // Set the timer
@@ -370,8 +431,8 @@ async function main() {
       // Other users have 60 seconds to join the wave
       const JOIN_WINDOW_SECONDS = 60;
       const workDeclarations: Record<string, string> = {};
-      if (workDeclaration && typeof workDeclaration === 'string' && workDeclaration.trim()) {
-        workDeclarations[userId] = workDeclaration.trim();
+      if (workDeclaration) {
+        workDeclarations[userId] = workDeclaration;
       }
 
       const session: PomoSession = {
@@ -417,7 +478,8 @@ async function main() {
   app.post("/api/rooms/:roomId/wave/join", async (req, res) => {
     try {
       const { roomId } = req.params;
-      const { userId, workDeclaration } = req.body;
+      const { userId } = req.body;
+      const workDeclaration = sanitizeWorkDeclaration(req.body.workDeclaration);
 
       if (!userId || typeof userId !== "string") {
         res.status(400).json({ error: "User ID is required" });
@@ -478,11 +540,11 @@ async function main() {
       }
 
       // Store work declaration if provided
-      if (workDeclaration && typeof workDeclaration === 'string' && workDeclaration.trim()) {
+      if (workDeclaration) {
         if (!currentSession.workDeclarations) {
           currentSession.workDeclarations = {};
         }
-        currentSession.workDeclarations[userId] = workDeclaration.trim();
+        currentSession.workDeclarations[userId] = workDeclaration;
       }
 
       await db.rooms.update(room);
@@ -493,7 +555,7 @@ async function main() {
         userId,
         nickname: userInRoom.nickname,
         emoji: userInRoom.emoji,
-        workDeclaration: workDeclaration?.trim() || null,
+        workDeclaration,
         partial: isPartialJoin,
       });
 
