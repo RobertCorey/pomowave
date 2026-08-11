@@ -8,6 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ["list"], // Simple list reporter for console output
+    ["html", { open: "never" }], // HTML report for CI artifacts
   ],
   use: {
     baseURL: process.env.TEST_BASE_URL || "http://localhost:5173",
